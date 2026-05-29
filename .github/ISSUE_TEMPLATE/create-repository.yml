@@ -1,0 +1,97 @@
+name: Create repository
+description: Request a managed GitHub repository.
+title: "Create repository: "
+labels:
+  - octostate
+  - repository
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Repository name
+      placeholder: example-service
+    validations:
+      required: true
+  - type: dropdown
+    id: visibility
+    attributes:
+      label: Visibility
+      options:
+        - private
+        - public
+    validations:
+      required: true
+  - type: input
+    id: description
+    attributes:
+      label: Description
+      placeholder: Short purpose of the repository
+  - type: input
+    id: homepage
+    attributes:
+      label: Homepage
+      description: Optional URL.
+      placeholder: https://example.com
+  - type: textarea
+    id: topics
+    attributes:
+      label: Topics
+      description: Optional repository topics, one per line.
+      placeholder: |
+        platform
+        service
+  - type: input
+    id: template
+    attributes:
+      label: Template repository
+      description: Optional owner/name template source.
+      placeholder: orang-gaboets-test/repo-template
+  - type: markdown
+    attributes:
+      value: |
+        Team access is grouped by permission. Add each existing managed team slug under only one permission field.
+  - type: textarea
+    id: teams_pull
+    attributes:
+      label: Teams with pull access
+      description: Optional existing managed team slugs, one per line.
+      placeholder: |
+        readers
+        auditors
+  - type: textarea
+    id: teams_triage
+    attributes:
+      label: Teams with triage access
+      description: Optional existing managed team slugs, one per line.
+      placeholder: |
+        support
+        operations
+  - type: textarea
+    id: teams_push
+    attributes:
+      label: Teams with push access
+      description: Optional existing managed team slugs, one per line.
+      placeholder: |
+        platform
+        developers
+  - type: textarea
+    id: teams_maintain
+    attributes:
+      label: Teams with maintain access
+      description: Optional existing managed team slugs, one per line.
+      placeholder: |
+        maintainers
+  - type: textarea
+    id: teams_admin
+    attributes:
+      label: Teams with admin access
+      description: Optional existing managed team slugs, one per line.
+      placeholder: |
+        admins
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Briefly explain why this repository is needed.
+    validations:
+      required: true
