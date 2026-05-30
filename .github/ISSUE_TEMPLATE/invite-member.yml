@@ -1,0 +1,54 @@
+name: Invite member
+description: Request an organization member invite.
+title: "Invite member: "
+labels:
+  - octostate
+  - invite
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Choose one invite identity type and provide the matching value.
+  - type: dropdown
+    id: identity_type
+    attributes:
+      label: Identity type
+      options:
+        - username
+        - email
+        - user_id
+    validations:
+      required: true
+  - type: input
+    id: identity_value
+    attributes:
+      label: Identity value
+      description: Enter the GitHub username, email address, or numeric user ID selected above.
+      placeholder: octocat
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Organization role
+      options:
+        - direct_member
+        - admin
+        - billing_manager
+    validations:
+      required: true
+  - type: textarea
+    id: team_slugs
+    attributes:
+      label: Team slugs
+      description: Optional team slugs to include with the invite, one per line.
+      placeholder: |
+        platform
+        developers
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Briefly explain why this invite is needed.
+    validations:
+      required: true

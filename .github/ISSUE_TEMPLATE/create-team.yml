@@ -1,0 +1,105 @@
+name: Create team
+description: Request a managed GitHub team.
+title: "Create team: "
+labels:
+  - octostate
+  - team
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Team name
+      placeholder: Platform
+    validations:
+      required: true
+  - type: input
+    id: slug
+    attributes:
+      label: Team slug
+      description: Must match the normalized team name used by GitHub.
+      placeholder: platform
+    validations:
+      required: true
+  - type: dropdown
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - closed
+        - secret
+    validations:
+      required: true
+  - type: input
+    id: parent_slug
+    attributes:
+      label: Parent team slug
+      description: Optional.
+      placeholder: engineering
+  - type: markdown
+    attributes:
+      value: |
+        Team members must already be declared as organization members. Add each username under only one role field.
+  - type: textarea
+    id: member_usernames
+    attributes:
+      label: Member usernames
+      description: Optional existing organization member usernames, one per line.
+      placeholder: |
+        alice
+        bob
+  - type: textarea
+    id: maintainer_usernames
+    attributes:
+      label: Maintainer usernames
+      description: Optional existing organization member usernames, one per line.
+      placeholder: |
+        carol
+        dave
+  - type: markdown
+    attributes:
+      value: |
+        Repository access is grouped by permission. Add each orang-gaboets-test repository name under only one permission field.
+  - type: textarea
+    id: repositories_pull
+    attributes:
+      label: Repositories with pull access
+      description: Optional orang-gaboets-test repository names, one per line.
+      placeholder: |
+        docs
+        handbook
+  - type: textarea
+    id: repositories_triage
+    attributes:
+      label: Repositories with triage access
+      description: Optional orang-gaboets-test repository names, one per line.
+      placeholder: |
+        support-portal
+  - type: textarea
+    id: repositories_push
+    attributes:
+      label: Repositories with push access
+      description: Optional orang-gaboets-test repository names, one per line.
+      placeholder: |
+        app
+        service
+  - type: textarea
+    id: repositories_maintain
+    attributes:
+      label: Repositories with maintain access
+      description: Optional orang-gaboets-test repository names, one per line.
+      placeholder: |
+        infra
+  - type: textarea
+    id: repositories_admin
+    attributes:
+      label: Repositories with admin access
+      description: Optional orang-gaboets-test repository names, one per line.
+      placeholder: |
+        control-plane
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Briefly explain why this team is needed.
+    validations:
+      required: true

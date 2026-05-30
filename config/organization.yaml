@@ -1,0 +1,22 @@
+organization: orang-gaboets-test
+members:
+  - username: FerdiHS
+    role: admin
+invites: []
+repositories:
+  - name: empty
+    visibility: private
+    topics:
+      - template
+  - name: empty-apply-test
+    visibility: private
+  - name: empty-template
+    visibility: private
+    topics:
+      - template
+  - name: octostate-control-test
+    visibility: public
+teams:
+  - slug: test-team
+    name: test-team
+    privacy: closed
