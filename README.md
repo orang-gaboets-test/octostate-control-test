@@ -16,12 +16,12 @@ config/
   organization.yaml
 ```
 
-The initial desired state is intentionally empty:
+The initial desired state is an adopted baseline from `orang-gaboets-test`:
 
-- no durable organization members
+- durable organization members currently present in the org
 - no pending invites
-- no managed repositories
-- no managed teams
+- repositories currently managed by the org
+- teams currently present in the org
 
 Open issues with the provided templates when a member invite, team, or repository
 should be added. A pull request should update `config/organization.yaml` and pass
