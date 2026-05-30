@@ -50,4 +50,6 @@ jobs:
             Applies the repository request from #${{ github.event.issue.number }}.
 
             This PR was generated from a repository issue form and only updates desired state.
+            The repository request workflow validated this config before opening the PR.
+            Because this PR is created with `GITHUB_TOKEN`, GitHub may not trigger separate PR validation workflows for it.
           draft: true

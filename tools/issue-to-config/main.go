@@ -256,6 +256,18 @@ func addRepositoryRequest(cfg *organizationConfig, request repositoryRequest) er
 		teamIndex[strings.ToLower(team.Slug)] = i
 	}
 
+	for _, permission := range sortedPermissions() {
+		for _, slug := range request.Teams[permission] {
+			index, ok := teamIndex[strings.ToLower(slug)]
+			if !ok {
+				return fmt.Errorf("team %q is not managed in config", slug)
+			}
+			if teamHasRepository(cfg.Teams[index], cfg.Organization, request.Name) {
+				return fmt.Errorf("team %q already references repository %q", slug, request.Name)
+			}
+		}
+	}
+
 	newRepo := repoSpec{
 		Name:       request.Name,
 		Visibility: request.Visibility,
@@ -272,13 +284,7 @@ func addRepositoryRequest(cfg *organizationConfig, request repositoryRequest) er
 
 	for _, permission := range sortedPermissions() {
 		for _, slug := range request.Teams[permission] {
-			index, ok := teamIndex[strings.ToLower(slug)]
-			if !ok {
-				return fmt.Errorf("team %q is not managed in config", slug)
-			}
-			if teamHasRepository(cfg.Teams[index], cfg.Organization, request.Name) {
-				return fmt.Errorf("team %q already references repository %q", slug, request.Name)
-			}
+			index := teamIndex[strings.ToLower(slug)]
 			cfg.Teams[index].Repositories = append(cfg.Teams[index].Repositories, teamRepoSpec{
 				Name:       request.Name,
 				Permission: permission,

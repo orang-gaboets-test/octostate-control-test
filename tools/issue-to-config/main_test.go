@@ -103,6 +103,66 @@ func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 }
 
 func TestApplyRepositoryIssueRejectsUnknownTeam(t *testing.T) {
+	var cfg organizationConfig
+	if err := yaml.Unmarshal([]byte(baseConfig), &cfg); err != nil {
+		t.Fatalf("base config is not valid YAML: %v", err)
+	}
+
+	err := addRepositoryRequest(&cfg, repositoryRequest{
+		Name:       "example-service",
+		Visibility: "private",
+		Teams: map[string][]string{
+			"push": {"missing-team"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not managed") {
+		t.Fatalf("expected unknown team error, got %v", err)
+	}
+	if len(cfg.Repositories) != 1 {
+		t.Fatalf("config should not be mutated on error, got repositories %#v", cfg.Repositories)
+	}
+}
+
+func TestApplyRepositoryIssueRejectsTeamRepositoryCollisionWithoutMutation(t *testing.T) {
+	configWithExistingTeamRepository := `organization: orang-gaboets-test
+members: []
+invites: []
+repositories:
+  - name: existing
+    visibility: private
+teams:
+  - slug: platform
+    name: Platform
+    privacy: closed
+    repositories:
+      - name: example-service
+        permission: pull
+`
+
+	var cfg organizationConfig
+	if err := yaml.Unmarshal([]byte(configWithExistingTeamRepository), &cfg); err != nil {
+		t.Fatalf("test config is not valid YAML: %v", err)
+	}
+
+	err := addRepositoryRequest(&cfg, repositoryRequest{
+		Name:       "example-service",
+		Visibility: "private",
+		Teams: map[string][]string{
+			"push": {"platform"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "already references") {
+		t.Fatalf("expected team repository collision error, got %v", err)
+	}
+	if len(cfg.Repositories) != 1 {
+		t.Fatalf("config should not add repository on error, got repositories %#v", cfg.Repositories)
+	}
+	if len(cfg.Teams[0].Repositories) != 1 {
+		t.Fatalf("config should not add team repository on error, got repositories %#v", cfg.Teams[0].Repositories)
+	}
+}
+
+func TestApplyRepositoryIssueRejectsUnknownTeamFromIssue(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
