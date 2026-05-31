@@ -9,6 +9,7 @@ body:
     id: name
     attributes:
       label: Repository name
+      description: Use ASCII letters, digits, dots, hyphens, and underscores only.
       placeholder: example-service
     validations:
       required: true
