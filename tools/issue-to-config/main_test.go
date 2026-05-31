@@ -39,6 +39,35 @@ func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 	}
 }
 
+func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
+	event := repositoryIssueEvent{}
+	event.Issue.Title = "Anything"
+	event.Issue.Labels = []issueLabel{{Name: "repository"}}
+
+	if !isRepositoryRequestIssue(event) {
+		t.Fatal("expected repository label to identify repository request")
+	}
+}
+
+func TestIsRepositoryRequestIssueAcceptsTitleFallback(t *testing.T) {
+	event := repositoryIssueEvent{}
+	event.Issue.Title = "Create repository: example-service"
+
+	if !isRepositoryRequestIssue(event) {
+		t.Fatal("expected title prefix to identify repository request")
+	}
+}
+
+func TestIsRepositoryRequestIssueRejectsUnrelatedIssue(t *testing.T) {
+	event := repositoryIssueEvent{}
+	event.Issue.Title = "Create team: platform"
+	event.Issue.Labels = []issueLabel{{Name: "team"}}
+
+	if isRepositoryRequestIssue(event) {
+		t.Fatal("did not expect unrelated issue to be identified as repository request")
+	}
+}
+
 func TestApplyRepositoryIssueOptionalFields(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
 		"Repository name":        "example-service",
@@ -99,6 +128,26 @@ func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 	}))
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected duplicate repository error, got %v", err)
+	}
+}
+
+func TestApplyRepositoryIssueRejectsInvalidRepositoryName(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name": "bad/name",
+		"Visibility":      "private",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "must contain only ASCII") {
+		t.Fatalf("expected invalid repository name error, got %v", err)
+	}
+}
+
+func TestApplyRepositoryIssueRejectsTooLongRepositoryName(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name": strings.Repeat("a", 101),
+		"Visibility":      "private",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("expected repository name length error, got %v", err)
 	}
 }
 

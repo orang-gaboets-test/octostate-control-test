@@ -15,13 +15,15 @@ import (
 
 type repositoryIssueEvent struct {
 	Issue struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-		Body   string `json:"body"`
-		Labels []struct {
-			Name string `json:"name"`
-		} `json:"labels"`
+		Number int          `json:"number"`
+		Title  string       `json:"title"`
+		Body   string       `json:"body"`
+		Labels []issueLabel `json:"labels"`
 	} `json:"issue"`
+}
+
+type issueLabel struct {
+	Name string `json:"name"`
 }
 
 type organizationConfig struct {
@@ -128,8 +130,8 @@ func run(eventPath, configPath string) error {
 	if err := json.Unmarshal(eventBytes, &event); err != nil {
 		return fmt.Errorf("parse event JSON: %w", err)
 	}
-	if !hasLabel(event.Issue.Labels, "repository") {
-		return errors.New("issue does not have required repository label")
+	if !isRepositoryRequestIssue(event) {
+		return errors.New("issue is not a repository request")
 	}
 
 	configBytes, err := os.ReadFile(configPath)
@@ -148,9 +150,12 @@ func run(eventPath, configPath string) error {
 	return nil
 }
 
-func hasLabel(labels []struct {
-	Name string `json:"name"`
-}, want string) bool {
+func isRepositoryRequestIssue(event repositoryIssueEvent) bool {
+	return hasLabel(event.Issue.Labels, "repository") ||
+		strings.HasPrefix(strings.ToLower(strings.TrimSpace(event.Issue.Title)), "create repository:")
+}
+
+func hasLabel(labels []issueLabel, want string) bool {
 	for _, label := range labels {
 		if strings.EqualFold(label.Name, want) {
 			return true
@@ -200,6 +205,9 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 	if request.Name == "" {
 		return repositoryRequest{}, errors.New("repository name is required")
 	}
+	if err := validateRepositoryName(request.Name); err != nil {
+		return repositoryRequest{}, err
+	}
 	switch request.Visibility {
 	case "private", "public":
 	default:
@@ -227,6 +235,30 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 	}
 
 	return request, nil
+}
+
+func validateRepositoryName(name string) error {
+	if len(name) > 100 {
+		return fmt.Errorf("repository name %q is too long; maximum length is 100 characters", name)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("repository name %q is not allowed", name)
+	}
+	for i := 0; i < len(name); i++ {
+		if !isRepositoryNameChar(name[i]) {
+			return fmt.Errorf("repository name %q must contain only ASCII letters, digits, dots, hyphens, or underscores", name)
+		}
+	}
+	return nil
+}
+
+func isRepositoryNameChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9') ||
+		c == '.' ||
+		c == '-' ||
+		c == '_'
 }
 
 func parseTemplateRepository(value string) (*templateSpec, error) {

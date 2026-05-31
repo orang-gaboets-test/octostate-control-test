@@ -13,7 +13,7 @@ permissions:
 jobs:
   create-draft-pr:
     name: Create draft PR
-    if: contains(github.event.issue.labels.*.name, 'repository')
+    if: contains(github.event.issue.labels.*.name, 'repository') || startsWith(github.event.issue.title, 'Create repository:')
     runs-on: ubuntu-latest
 
     steps:
