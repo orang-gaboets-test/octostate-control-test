@@ -29,3 +29,34 @@ jobs:
 
       - name: Validate config
         run: octostate config validate --config-dir ./config
+
+  preflight:
+    name: Preflight apply check
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create preflight GitHub App token
+        id: preflight-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Install octostate
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
+
+      - name: Validate config
+        run: octostate config validate --config-dir ./config
+
+      - name: Preflight apply
+        run: octostate config apply --config-dir ./config --check --token "${{ steps.preflight-app-token.outputs.token }}"
