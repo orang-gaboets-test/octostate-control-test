@@ -6,8 +6,7 @@ on:
       - opened
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
   issues: read
 
 jobs:
@@ -28,6 +27,15 @@ jobs:
           go-version: "1.24.x"
           cache: false
 
+      - name: Create PR GitHub App token
+        id: pr-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.OCTOSTATE_PR_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PR_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Update desired state
         working-directory: tools/issue-to-config
         run: go run . --event-path "$GITHUB_EVENT_PATH" --config ../../config/organization.yaml
@@ -41,15 +49,17 @@ jobs:
       - name: Create draft pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.pr-app-token.outputs.token }}
+          branch-token: ${{ steps.pr-app-token.outputs.token }}
           branch: automation/repository-request-${{ github.event.issue.number }}
           delete-branch: true
           commit-message: Add repository request from issue #${{ github.event.issue.number }}
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           title: Add repository from issue #${{ github.event.issue.number }}
           body: |
             Applies the repository request from #${{ github.event.issue.number }}.
 
             This PR was generated from a repository issue form and only updates desired state.
             The repository request workflow validated this config before opening the PR.
-            Because this PR is created with `GITHUB_TOKEN`, GitHub may not trigger separate PR validation workflows for it.
+            This PR is created with a GitHub App token so separate PR validation workflows can run normally.
           draft: true
