@@ -26,27 +26,43 @@ The initial desired state is an adopted baseline from `orang-gaboets-test`:
 Open issues with the provided templates when a member invite, team, or repository
 should be added. A pull request should update `config/organization.yaml` and pass
 validation before merge.
+Repository-request issues are turned into draft PRs with a dedicated GitHub App
+token so the resulting branches can run normal PR checks.
 
 ## Validation
 
 Pull requests run a validate-only workflow that installs the pinned CLI version:
 
 ```bash
-go install github.com/orang-gaboets/octostate/cmd/octostate@v1.0.0
+go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
 octostate config validate --config-dir ./config
 ```
 
 `octostate config validate` is offline and does not require GitHub credentials or
-repository secrets.
+repository secrets. PR validation also runs `octostate config apply --check`
+with a separate GitHub App token as a preflight gate before merge.
+
+## Live Apply
+
+When a change to `config/organization.yaml` lands on `main`, GitHub Actions runs
+a second pass that:
+
+1. checks out the pushed commit on `main`
+2. validates the desired state again
+3. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
+
+That workflow uses a dedicated bot PAT stored in the `OCTOSTATE_BOT_TOKEN`
+repository secret. `octostate config apply` only executes the supported
+create/update portion of the plan; unsupported delete/remove drift is reported
+but skipped.
 
 ## State Directory
 
-`state/actual/` is reserved for future actual-state snapshots. This first version
-keeps the directory present with `.gitkeep` but does not collect, diff, plan, or
-apply live GitHub state.
+`state/actual/` is reserved for future actual-state snapshots. This repository
+keeps the directory present with `.gitkeep`, but live apply does not write
+snapshots there.
 
 ## Scope
 
-This first scaffold is validate-only by design. Live apply automation should be
-added later only after the organization authentication model, approval policy,
-and rollout process are agreed upon.
+Open pull requests are validate-only by design. Live apply runs from `main` so
+the desired state is reconciled as soon as it lands there.
