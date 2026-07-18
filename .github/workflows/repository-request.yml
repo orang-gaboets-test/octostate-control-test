@@ -54,7 +54,8 @@ jobs:
           branch: automation/repository-request-${{ github.event.issue.number }}
           delete-branch: true
           commit-message: Add repository request from issue #${{ github.event.issue.number }}
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           title: Add repository from issue #${{ github.event.issue.number }}
           body: |
             Applies the repository request from #${{ github.event.issue.number }}.
