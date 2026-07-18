@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: octostate-apply-${{ github.repository }}
-  cancel-in-progress: true
+  # Do not cancel an in-flight apply; octostate apply is not transactional.
+  cancel-in-progress: false
 
 jobs:
   apply:
