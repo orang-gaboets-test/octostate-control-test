@@ -40,14 +40,29 @@ octostate config validate --config-dir ./config
 
 `octostate config validate` is offline and does not require GitHub credentials or
 repository secrets. PR validation also runs `octostate config apply --check`
-with a separate GitHub App token as a preflight gate before merge.
+with a separate GitHub App token as a preflight gate before merge. That preflight
+job only runs for same-repo pull requests; forked PRs stay validate-only.
+
+## GitHub App Setup
+
+The repository uses short-lived GitHub App tokens for two workflow paths:
+
+- `OCTOSTATE_PR_APP_CLIENT_ID` and `OCTOSTATE_PR_APP_PRIVATE_KEY` power the
+  repository-request workflow that drafts PRs from issues.
+- `OCTOSTATE_PREFLIGHT_APP_CLIENT_ID` and
+  `OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY` power the same-repo PR preflight check.
+- `OCTOSTATE_BOT_TOKEN` powers the live apply workflow after changes land on
+  `main`.
+
+Install the apps on the `orang-gaboets-test` organization with the permissions
+needed for the workflow they serve.
 
 ## Live Apply
 
 When a change to `config/organization.yaml` lands on `main`, GitHub Actions runs
 a second pass that:
 
-1. checks out the pushed commit on `main`
+1. checks out the current `main` tip
 2. validates the desired state again
 3. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
 
