@@ -33,6 +33,7 @@ jobs:
   preflight:
     name: Preflight apply check
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:
