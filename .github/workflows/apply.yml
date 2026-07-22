@@ -65,8 +65,8 @@ jobs:
             {
               echo "### Live apply skipped"
               echo
-              echo "Validated commit: `$VALIDATED_SHA`"
-              echo "Current main: `$current_main_sha`"
+              printf 'Validated commit: `%s`\n' "$VALIDATED_SHA"
+              printf 'Current main: `%s`\n' "$current_main_sha"
               echo
               echo "A newer successful validation run will reconcile the current main state."
             } >> "$GITHUB_STEP_SUMMARY"
@@ -85,8 +85,8 @@ jobs:
             {
               echo "### Apply completed on a stale revision"
               echo
-              echo "Applied commit: `$VALIDATED_SHA`"
-              echo "Current main: `$latest_main_sha`"
+              printf 'Applied commit: `%s`\n' "$VALIDATED_SHA"
+              printf 'Current main: `%s`\n' "$latest_main_sha"
               echo
               echo "The newer commit's validation and apply workflow will reconcile the current state."
             } >> "$GITHUB_STEP_SUMMARY"
