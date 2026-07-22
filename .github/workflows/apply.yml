@@ -130,7 +130,6 @@ jobs:
             if [ "$current_main_config_blob" = "$validated_config_blob" ]; then
               echo "main advanced to $current_main_sha, but config/organization.yaml is unchanged; proceeding with live apply."
             else
-              echo "applied=false" >> "$GITHUB_OUTPUT"
               echo "Skipping live apply because config/organization.yaml changed after validation of $VALIDATED_SHA."
               {
                 echo "### Live apply skipped"
@@ -159,7 +158,6 @@ jobs:
               echo "main advanced during apply, but config/organization.yaml is unchanged."
               exit 0
             fi
-            echo "applied=false" >> "$GITHUB_OUTPUT"
             {
               echo "### Apply completed on a stale revision"
               echo
