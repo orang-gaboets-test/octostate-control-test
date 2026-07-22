@@ -60,6 +60,10 @@ trusted base-branch definition can handle the App secret; it checks out the
 generated PR merge ref only as configuration input and does not execute code from
 the PR.
 
+Pushes to `main` must be single-commit pushes or merge results that land as a
+single commit. Multi-commit pushes fail validation so live apply can keep a
+clear provenance trail for the config blob being reconciled.
+
 ## GitHub App Setup
 
 The repository uses two short-lived GitHub App tokens and one live-apply secret:

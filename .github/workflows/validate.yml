@@ -20,6 +20,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Enforce single-commit main pushes
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          commit_count="$(jq '.commits | length' "$GITHUB_EVENT_PATH")"
+          if [ "$commit_count" -ne 1 ]; then
+            echo "main must be updated by exactly one commit per push; got $commit_count commits."
+            echo "Use a squash merge or a single commit push so apply can trace config provenance."
+            exit 1
+          fi
+
       - name: Detect config change
         id: detect
         env:
