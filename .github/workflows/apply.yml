@@ -68,13 +68,15 @@ jobs:
                 .[]?
                 | select(.merged_at != null)
                 | select(.head.repo.full_name == $repository)
+                | select(.base.repo.full_name == $repository)
+                | select(.base.ref == "main")
                 | select(.user.login == $app_login)
                 | select(.head.ref | startswith("automation/repository-request-"))
               ]
               | length
             ')"
-          if [ "$authorized_pr_count" = "0" ]; then
-            echo "Refusing live apply: config/organization.yaml provenance commit $provenance_commit_sha was not introduced by a merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-*."
+          if [ "$authorized_pr_count" != "1" ]; then
+            echo "Refusing live apply: config/organization.yaml provenance commit $provenance_commit_sha must map to exactly one merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-* targeting main."
             exit 1
           fi
 
