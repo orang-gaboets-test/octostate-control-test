@@ -25,6 +25,7 @@ jobs:
 
     steps:
       - name: Verify apply provenance
+        id: provenance
         env:
           GH_TOKEN: ${{ github.token }}
           OCTOSTATE_PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
@@ -39,6 +40,7 @@ jobs:
             parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha)"
           fi
           if [ "$validated_config_blob" = "$parent_config_blob" ]; then
+            echo "apply_required=false" >> "$GITHUB_OUTPUT"
             echo "Validated commit did not change config/organization.yaml; skipping live apply."
             exit 0
           fi
@@ -72,15 +74,18 @@ jobs:
             exit 1
           fi
 
+          echo "apply_required=true" >> "$GITHUB_OUTPUT"
           echo "Config provenance commit has authorized PR provenance."
 
       - name: Checkout validated commit
+        if: steps.provenance.outputs.apply_required == 'true'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
       - name: Verify apply token
+        if: steps.provenance.outputs.apply_required == 'true'
         env:
           OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
         run: |
@@ -90,19 +95,23 @@ jobs:
           fi
 
       - name: Set up Go
+        if: steps.provenance.outputs.apply_required == 'true'
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version: "1.24.x"
           cache: false
 
       - name: Install octostate
+        if: steps.provenance.outputs.apply_required == 'true'
         run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
 
       - name: Validate config
+        if: steps.provenance.outputs.apply_required == 'true'
         run: octostate config validate --config-dir ./config
 
       - name: Apply config if validated commit is still current
         id: apply
+        if: steps.provenance.outputs.apply_required == 'true'
         env:
           OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
         run: |
@@ -125,14 +134,14 @@ jobs:
                 echo
                 echo "A newer successful validation run will reconcile the current main state."
               } >> "$GITHUB_STEP_SUMMARY"
-              exit 0
+              exit 1
             fi
           fi
           octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"
           echo "applied=true" >> "$GITHUB_OUTPUT"
 
       - name: Check for newer main commit after apply
-        if: success() && steps.apply.outputs.applied == 'true'
+        if: success() && steps.provenance.outputs.apply_required == 'true' && steps.apply.outputs.applied == 'true'
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
@@ -151,8 +160,8 @@ jobs:
               printf 'Applied commit: `%s`\n' "$VALIDATED_SHA"
               printf 'Current main: `%s`\n' "$latest_main_sha"
               echo
-              echo "The newer commit's validation and apply workflow will reconcile the current state."
+              echo "A newer validation/apply cycle must reconcile the current state."
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
           echo "Applied revision is still current main."

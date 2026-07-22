@@ -115,9 +115,9 @@ That workflow uses a dedicated bot PAT stored in the `OCTOSTATE_BOT_TOKEN`
 repository secret. `octostate config apply` only executes the supported
 create/update portion of the plan; unsupported delete/remove drift is reported
 but skipped. Documentation-only commits on `main` stay validation-only and do
-not trigger live apply. A newer successful validation run automatically queues
-the apply for changed desired state, so a stale apply converges to the current
-desired state. Direct pushes or unqualified commits that change
+not trigger live apply. A newer successful validation run can reconcile the
+current desired state, but stale apply runs fail visibly and may need another
+validation/apply cycle. Direct pushes or unqualified commits that change
 `config/organization.yaml` fail before checkout and before the live-apply token
 is used.
 
