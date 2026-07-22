@@ -102,6 +102,30 @@ jobs:
             validated_config_blob="$(git rev-parse "$VALIDATED_SHA:config/organization.yaml")"
             current_main_config_blob="$(git rev-parse "origin/main:config/organization.yaml")"
             if [ "$current_main_config_blob" = "$validated_config_blob" ]; then
+              provenance_commit_sha="$(gh api "repos/$REPOSITORY/commits?sha=$current_main_sha&path=config/organization.yaml&per_page=1" --jq '.[0].sha // empty')"
+              if [ -z "$provenance_commit_sha" ]; then
+                echo "Unable to determine the commit that introduced config/organization.yaml on current main."
+                exit 1
+              fi
+
+              authorized_pr_count="$(gh api \
+                -H "Accept: application/vnd.github.groot-preview+json" \
+                "repos/$REPOSITORY/commits/$provenance_commit_sha/pulls" \
+                | jq --arg repository "$REPOSITORY" --arg app_login "$OCTOSTATE_PR_APP_LOGIN" '
+                  [
+                    .[]?
+                    | select(.merged_at != null)
+                    | select(.head.repo.full_name == $repository)
+                    | select(.user.login == $app_login)
+                    | select(.head.ref | startswith("automation/repository-request-"))
+                  ]
+                  | length
+                ')"
+              if [ "$authorized_pr_count" = "0" ]; then
+                echo "Refusing live apply: current main provenance commit $provenance_commit_sha was not introduced by a merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-*."
+                exit 1
+              fi
+
               echo "main advanced to $current_main_sha, but config/organization.yaml is unchanged; proceeding with live apply."
             else
               echo "applied=false" >> "$GITHUB_OUTPUT"
