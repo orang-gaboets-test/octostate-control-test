@@ -31,7 +31,10 @@ token so the resulting branches can run organization-change checks.
 
 ## Validation
 
-Organization-change PRs run a workflow that installs the pinned CLI version:
+All PRs run the validation workflow so the required check always reports a
+clear pass or fail. PRs that do not change `config/organization.yaml` pass
+without running `octostate`. Authorized organization-change PRs run the pinned
+CLI version:
 
 ```bash
 go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
@@ -39,20 +42,23 @@ octostate config validate --config-dir ./config
 ```
 
 `octostate config validate` is offline and does not require GitHub credentials or
-repository secrets. The same workflow runs `octostate config apply --check`
-with a separate GitHub App token as a preflight gate before merge.
+repository secrets. For authorized organization-change PRs, the same workflow
+runs `octostate config apply --check` with a separate GitHub App token as a
+preflight gate before merge.
 
-The jobs run only when all of the following are true for a pull request:
+PRs that change `config/organization.yaml` fail unless all of the following are
+true:
 
 - the head repository is this repository
 - the head branch starts with `automation/repository-request-`
 - the PR author login exactly matches the `OCTOSTATE_PR_APP_LOGIN` repository
   variable
 
-Normal development PRs and fork PRs do not run octostate. The workflow uses
-`pull_request_target` so its trusted base-branch definition can handle the App
-secret; it checks out the generated PR merge ref only as configuration input and
-does not execute code from the PR.
+Normal development PRs and fork PRs pass only when they do not change
+`config/organization.yaml`. The workflow uses `pull_request_target` so its
+trusted base-branch definition can handle the App secret; it checks out the
+generated PR merge ref only as configuration input and does not execute code from
+the PR.
 
 ## GitHub App Setup
 
@@ -79,11 +85,12 @@ Apply a manual GitHub branch ruleset to `automation/repository-request-*` so
 only the dedicated PR App can create and update repository-request branches.
 Configure the ruleset to:
 
+- set enforcement status to `Active`
 - restrict creations
 - restrict updates
 - restrict deletions
 - block force pushes
-- allow only the dedicated PR App as a bypass actor
+- allow only the dedicated PR App as a bypass actor with `Always allow`
 
 Do not add human or admin bypass entries. This ruleset is a GitHub repository
 setting, not a file stored in this repository.
@@ -96,16 +103,19 @@ second pass that:
 
 1. checks out the validated commit
 2. revalidates the desired state
-3. skips the apply if `main` has already advanced to a newer commit
-4. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
-5. checks whether `main` advanced during the apply and records a stale result
+3. compares the validated `config/organization.yaml` blob with current `main`
+4. skips the apply only if current `main` has a different desired-state blob
+5. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
+6. checks whether `main` changed desired state during the apply and records a
+   stale result
 
 That workflow uses a dedicated bot PAT stored in the `OCTOSTATE_BOT_TOKEN`
 repository secret. `octostate config apply` only executes the supported
 create/update portion of the plan; unsupported delete/remove drift is reported
-but skipped. A newer successful validation run automatically queues the apply
-for the latest `main` commit, so a stale apply converges to the current desired
-state.
+but skipped. Documentation-only commits on `main` do not block apply when the
+desired-state blob is unchanged. A newer successful validation run automatically
+queues the apply for changed desired state, so a stale apply converges to the
+current desired state.
 
 ## State Directory
 

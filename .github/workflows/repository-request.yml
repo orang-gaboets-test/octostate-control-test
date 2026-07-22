@@ -72,7 +72,6 @@ jobs:
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           token: ${{ steps.pr-app-token.outputs.token }}
-          branch-token: ${{ steps.pr-app-token.outputs.token }}
           branch: automation/repository-request-${{ github.event.issue.number }}
           delete-branch: true
           commit-message: Add repository request from issue #${{ github.event.issue.number }}
