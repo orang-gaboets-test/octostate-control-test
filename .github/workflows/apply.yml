@@ -7,10 +7,6 @@ on:
     types:
       - completed
 
-concurrency:
-  group: octostate-live-apply
-  cancel-in-progress: false
-
 permissions:
   contents: read
   pull-requests: read
@@ -20,6 +16,10 @@ jobs:
     name: Apply desired state
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: octostate-live-apply
+      cancel-in-progress: false
+      queue: max
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
