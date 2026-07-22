@@ -93,7 +93,10 @@ jobs:
       - name: Apply config if validated commit is still current
         id: apply
         env:
+          GH_TOKEN: ${{ github.token }}
           OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
+          OCTOSTATE_PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
