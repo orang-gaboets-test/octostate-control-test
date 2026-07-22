@@ -16,10 +16,6 @@ jobs:
     name: Apply desired state
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    concurrency:
-      group: octostate-apply-${{ github.repository }}
-      # Do not cancel an in-flight apply; octostate apply is not transactional.
-      cancel-in-progress: false
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -33,26 +29,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OCTOSTATE_PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
           REPOSITORY: ${{ github.repository }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          parent_sha="$(gh api "repos/$REPOSITORY/commits/$VALIDATED_SHA" --jq '.parents[0].sha // ""')"
-          validated_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$VALIDATED_SHA" --jq .sha 2>/dev/null || true)"
-          parent_config_blob=""
-          if [ -n "$parent_sha" ]; then
-            parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha 2>/dev/null || true)"
-          fi
-          if [ "$validated_config_blob" = "$parent_config_blob" ]; then
-            echo "Validated commit did not change config/organization.yaml; continuing."
-            exit 0
-          fi
           if [ -z "$OCTOSTATE_PR_APP_LOGIN" ]; then
             echo "OCTOSTATE_PR_APP_LOGIN is required for config-changing live apply."
             exit 1
           fi
 
+          provenance_commit_sha="$(gh api "repos/$REPOSITORY/commits?sha=$VALIDATED_SHA&path=config/organization.yaml&per_page=1" --jq '.[0].sha // empty')"
+          if [ -z "$provenance_commit_sha" ]; then
+            echo "Unable to determine the commit that introduced config/organization.yaml."
+            exit 1
+          fi
+
           authorized_pr_count="$(gh api \
             -H "Accept: application/vnd.github.groot-preview+json" \
-            "repos/$REPOSITORY/commits/$VALIDATED_SHA/pulls" \
+            "repos/$REPOSITORY/commits/$provenance_commit_sha/pulls" \
             | jq --arg repository "$REPOSITORY" --arg app_login "$OCTOSTATE_PR_APP_LOGIN" '
               [
                 .[]?
@@ -64,11 +57,11 @@ jobs:
               | length
             ')"
           if [ "$authorized_pr_count" = "0" ]; then
-            echo "Refusing live apply: config/organization.yaml changed without a merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-*."
+            echo "Refusing live apply: config/organization.yaml provenance commit $provenance_commit_sha was not introduced by a merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-*."
             exit 1
           fi
 
-          echo "Config-changing commit has authorized PR provenance."
+          echo "Config provenance commit has authorized PR provenance."
 
       - name: Checkout validated commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
