@@ -1,33 +1,37 @@
 name: Apply octostate config
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - config/organization.yaml
+  workflow_run:
+    workflows:
+      - Validate octostate config
+    types:
+      - completed
 
 permissions:
   contents: read
-
-concurrency:
-  group: octostate-apply-${{ github.repository }}
-  # Do not cancel an in-flight apply; octostate apply is not transactional.
-  cancel-in-progress: false
 
 jobs:
   apply:
     name: Apply desired state
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: octostate-apply-${{ github.repository }}
+      # Do not cancel an in-flight apply; octostate apply is not transactional.
+      cancel-in-progress: false
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
     env:
       OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
+      VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
-      - name: Checkout current main
-        uses: actions/checkout@v4
+      - name: Checkout validated commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: main
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
       - name: Verify apply token
@@ -38,7 +42,7 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version: "1.24.x"
           cache: false
@@ -49,5 +53,43 @@ jobs:
       - name: Validate config
         run: octostate config validate --config-dir ./config
 
-      - name: Apply config
-        run: octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"
+      - name: Apply config if validated commit is still current
+        id: apply
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$current_main_sha" != "$VALIDATED_SHA" ]; then
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping live apply because main advanced to $current_main_sha after validation of $VALIDATED_SHA."
+            {
+              echo "### Live apply skipped"
+              echo
+              echo "Validated commit: `$VALIDATED_SHA`"
+              echo "Current main: `$current_main_sha`"
+              echo
+              echo "A newer successful validation run will reconcile the current main state."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check for newer main commit after apply
+        if: success() && steps.apply.outputs.applied == 'true'
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          latest_main_sha="$(git rev-parse origin/main)"
+          if [ "$latest_main_sha" != "$VALIDATED_SHA" ]; then
+            {
+              echo "### Apply completed on a stale revision"
+              echo
+              echo "Applied commit: `$VALIDATED_SHA`"
+              echo "Current main: `$latest_main_sha`"
+              echo
+              echo "The newer commit's validation and apply workflow will reconcile the current state."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Applied revision is still current main."
