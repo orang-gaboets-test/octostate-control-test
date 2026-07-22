@@ -101,12 +101,14 @@ When a change to `config/organization.yaml` lands on `main`, GitHub Actions wait
 for the `Validate octostate config` workflow on that same commit, then runs a
 second pass that:
 
-1. checks out the validated commit
-2. revalidates the desired state
-3. compares the validated `config/organization.yaml` blob with current `main`
-4. skips the apply only if current `main` has a different desired-state blob
-5. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
-6. checks whether `main` changed desired state during the apply and records a
+1. verifies config-changing commits came from a merged same-repo PR authored by
+   the dedicated PR App on an `automation/repository-request-*` branch
+2. checks out the validated commit
+3. revalidates the desired state
+4. compares the validated `config/organization.yaml` blob with current `main`
+5. skips the apply only if current `main` has a different desired-state blob
+6. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
+7. checks whether `main` changed desired state during the apply and records a
    stale result
 
 That workflow uses a dedicated bot PAT stored in the `OCTOSTATE_BOT_TOKEN`
@@ -115,7 +117,9 @@ create/update portion of the plan; unsupported delete/remove drift is reported
 but skipped. Documentation-only commits on `main` do not block apply when the
 desired-state blob is unchanged. A newer successful validation run automatically
 queues the apply for changed desired state, so a stale apply converges to the
-current desired state.
+current desired state. Direct pushes or unqualified commits that change
+`config/organization.yaml` fail before checkout and before the live-apply token
+is used.
 
 ## State Directory
 

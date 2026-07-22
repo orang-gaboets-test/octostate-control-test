@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   apply:
@@ -27,6 +28,48 @@ jobs:
       VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
+      - name: Verify apply provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OCTOSTATE_PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          parent_sha="$(gh api "repos/$REPOSITORY/commits/$VALIDATED_SHA" --jq '.parents[0].sha // ""')"
+          validated_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$VALIDATED_SHA" --jq .sha 2>/dev/null || true)"
+          parent_config_blob=""
+          if [ -n "$parent_sha" ]; then
+            parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha 2>/dev/null || true)"
+          fi
+          if [ "$validated_config_blob" = "$parent_config_blob" ]; then
+            echo "Validated commit did not change config/organization.yaml; continuing."
+            exit 0
+          fi
+          if [ -z "$OCTOSTATE_PR_APP_LOGIN" ]; then
+            echo "OCTOSTATE_PR_APP_LOGIN is required for config-changing live apply."
+            exit 1
+          fi
+
+          authorized_pr_count="$(gh api \
+            -H "Accept: application/vnd.github.groot-preview+json" \
+            "repos/$REPOSITORY/commits/$VALIDATED_SHA/pulls" \
+            | jq --arg repository "$REPOSITORY" --arg app_login "$OCTOSTATE_PR_APP_LOGIN" '
+              [
+                .[]?
+                | select(.merged_at != null)
+                | select(.head.repo.full_name == $repository)
+                | select(.user.login == $app_login)
+                | select(.head.ref | startswith("automation/repository-request-"))
+              ]
+              | length
+            ')"
+          if [ "$authorized_pr_count" = "0" ]; then
+            echo "Refusing live apply: config/organization.yaml changed without a merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-*."
+            exit 1
+          fi
+
+          echo "Config-changing commit has authorized PR provenance."
+
       - name: Checkout validated commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
