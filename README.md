@@ -55,10 +55,10 @@ true:
   variable
 
 Normal development PRs and fork PRs pass only when they do not change
-`config/organization.yaml`. The workflow uses `pull_request_target` so its
-trusted base-branch definition can handle the App secret; it checks out the
-generated PR merge ref only as configuration input and does not execute code from
-the PR.
+`config/organization.yaml`. The workflow uses `pull_request` for unprivileged
+validation and `pull_request_target` for the App-secret preflight; the trusted
+base-branch definition checks out the generated PR merge ref only as
+configuration input and does not execute code from the PR.
 
 Pushes to `main` must be single-commit pushes or merge results that land as a
 single commit. Multi-commit pushes fail validation so live apply can keep a
