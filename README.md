@@ -43,8 +43,9 @@ octostate config validate --config-dir ./config
 
 `octostate config validate` is offline and does not require GitHub credentials or
 repository secrets. For authorized organization-change PRs, the same workflow
-runs `octostate config apply --check` with a separate GitHub App token as a
-preflight gate before merge.
+publishes an `Octostate preflight` status on the PR merge SHA and then runs
+`octostate config apply --check` with a separate GitHub App token as the
+trusted preflight gate before merge.
 
 PRs that change `config/organization.yaml` fail unless all of the following are
 true:
@@ -58,7 +59,8 @@ Normal development PRs and fork PRs pass only when they do not change
 `config/organization.yaml`. The workflow uses `pull_request` for unprivileged
 validation and `pull_request_target` for the App-secret preflight; the trusted
 base-branch definition checks out the generated PR merge ref only as
-configuration input and does not execute code from the PR.
+configuration input and does not execute code from the PR. The `main` branch
+ruleset should require both `Validate desired state` and `Octostate preflight`.
 
 Pushes to `main` must be single-commit pushes or merge results that land as a
 single commit. Multi-commit pushes fail validation so live apply can keep a
