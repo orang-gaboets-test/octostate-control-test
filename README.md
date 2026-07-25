@@ -42,9 +42,9 @@ octostate config validate --config-dir ./config
 ```
 
 `octostate config validate` is offline and does not require GitHub credentials or
-repository secrets. For authorized organization-change PRs, the same workflow
-publishes an `Octostate preflight` status on the PR merge SHA and then runs
-`octostate config apply --check` with a separate GitHub App token as the
+repository secrets. For authorized organization-change PRs, the trusted
+preflight App publishes an `Octostate preflight` status on the PR merge SHA and
+then runs `octostate config apply --check` with its own GitHub App token as the
 trusted preflight gate before merge.
 
 PRs that change `config/organization.yaml` fail unless all of the following are
@@ -76,8 +76,9 @@ The repository uses two short-lived GitHub App tokens and one live-apply secret:
   `OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY` power the organization-change PR
   preflight check. Set `OCTOSTATE_PR_APP_LOGIN` to the exact login of the PR
   App's bot user, including the `[bot]` suffix. Install the preflight App on the
-  organization with read access to organization members and repository metadata,
-  and grant it access to all repositories whose state is managed here.
+  organization with read access to pull requests, organization members, and
+  repository metadata plus commit-status write access, and grant it access to
+  all repositories whose state is managed here.
 - `OCTOSTATE_BOT_TOKEN` powers the live apply workflow after changes land on
   `main`.
 
