@@ -26,6 +26,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
 
     assert_includes checkout.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
+    assert_includes workflow_yaml.fetch("run"), '*.{yml,yaml}'
     assert_includes resolve.fetch("run"), "merge_commit_sha"
     assert_includes resolve.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("env").fetch("PRECHECK_SHA"), "merge_commit_sha"
