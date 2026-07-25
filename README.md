@@ -123,7 +123,10 @@ create/update portion of the plan; unsupported delete/remove drift is reported
 but skipped. Documentation-only commits on `main` stay validation-only and do
 not trigger live apply. A newer successful validation run can reconcile the
 current desired state, but stale apply runs fail visibly and may need another
-validation/apply cycle. Direct pushes or unqualified commits that change
+validation/apply cycle. If a live apply run fails after it starts, re-run that
+same workflow run from the Actions tab to retry the validated commit; if main
+has moved to a different desired-state blob, start a new validation/apply
+cycle instead. Direct pushes or unqualified commits that change
 `config/organization.yaml` fail before checkout and before the live-apply token
 is used.
 
