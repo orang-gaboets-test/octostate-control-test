@@ -134,7 +134,7 @@ jobs:
       # as configuration input for octostate, but it must not run workflow
       # linting or repository code from the PR.
       - name: Checkout
-        if: github.event_name == 'push' || steps.detect.outputs.config_changed == 'true' || (github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true')
+        if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true')
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}

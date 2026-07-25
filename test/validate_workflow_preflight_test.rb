@@ -26,7 +26,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_nil resolve
     refute_nil publish
 
-    assert_includes checkout.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
+    assert_includes checkout.fetch("if"), "github.event_name == 'pull_request'"
+    refute_includes checkout.fetch("if"), "steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("run"), '*.{yml,yaml}'
     assert_equal "write", token.fetch("with").fetch("permission-statuses")
