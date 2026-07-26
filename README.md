@@ -60,7 +60,7 @@ Normal development PRs and fork PRs pass only when they do not change
 validation and `pull_request_target` for the App-secret preflight; the trusted
 base-branch definition checks out the generated PR merge ref only as
 configuration input and does not execute code from the PR. The `main` branch
-ruleset should require both `Validate desired state` and `Octostate preflight`.
+ruleset should follow the Main Branch Ruleset section below.
 
 Pushes to `main` must be single-commit pushes or merge results that land as a
 single commit. Multi-commit pushes fail validation so live apply can keep a
@@ -103,6 +103,19 @@ Configure the ruleset to:
 
 Do not add human or admin bypass entries. This ruleset is a GitHub repository
 setting, not a file stored in this repository.
+
+## Main Branch Ruleset
+
+Apply a manual GitHub branch ruleset to `main` that:
+
+- requires pull requests
+- requires `Validate desired state` with GitHub Actions as the expected source
+- requires `Octostate preflight` with the dedicated preflight App as the expected source
+- blocks direct pushes
+- blocks force pushes
+- blocks deletion
+- keeps merged config changes to one commit, preferably by squash merge
+- avoids human or admin bypass entries for desired-state changes
 
 ## Live Apply
 
