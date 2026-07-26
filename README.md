@@ -68,13 +68,15 @@ clear provenance trail for the config blob being reconciled.
 
 ## GitHub App Setup
 
-The repository uses two short-lived GitHub App tokens and one live-apply secret:
+The repository uses three short-lived GitHub App tokens and one live-apply secret:
 
 - `OCTOSTATE_PR_APP_CLIENT_ID` and `OCTOSTATE_PR_APP_PRIVATE_KEY` power the
   repository-request workflow that drafts PRs from issues.
 - `OCTOSTATE_PREFLIGHT_APP_CLIENT_ID` and
   `OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY` power the organization-change PR
-  preflight check. Set `OCTOSTATE_PR_APP_LOGIN` to the exact login of the PR
+  preflight checks. The workflow mints a repository-scoped status token for
+  `Octostate preflight` and a separate read token for `octostate config
+  apply --check`. Set `OCTOSTATE_PR_APP_LOGIN` to the exact login of the PR
   App's bot user, including the `[bot]` suffix. Install the preflight App on the
   organization with read access to pull requests, organization members, and
   repository metadata plus commit-status write access, and grant it access to

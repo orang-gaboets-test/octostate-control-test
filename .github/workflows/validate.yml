@@ -71,6 +71,18 @@ jobs:
             echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Create preflight status GitHub App token
+        if: github.event_name == 'pull_request_target'
+        id: preflight-status-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-statuses: write
+          permission-pull-requests: read
+
       - name: Check organization-change provenance
         if: github.event_name == 'pull_request_target'
         env:
@@ -96,24 +108,11 @@ jobs:
 
           echo "Organization config change is App-authored."
 
-      - name: Create preflight GitHub App token
-        if: github.event_name == 'pull_request_target'
-        id: preflight-app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
-          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          permission-statuses: write
-          permission-pull-requests: read
-          permission-members: read
-          permission-metadata: read
-
       - name: Resolve preflight status target
         if: github.event_name == 'pull_request_target'
         id: preflight-status
         env:
-          GH_TOKEN: ${{ steps.preflight-app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -164,14 +163,25 @@ jobs:
         if: github.event_name == 'push' || steps.detect.outputs.config_changed == 'true'
         run: octostate config validate --config-dir ./config
 
+      - name: Create preflight read GitHub App token
+        if: github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true'
+        id: preflight-read-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-members: read
+          permission-metadata: read
+
       - name: Preflight apply
         if: github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true'
-        run: octostate config apply --config-dir ./config --check --token "${{ steps.preflight-app-token.outputs.token }}"
+        run: octostate config apply --config-dir ./config --check --token "${{ steps.preflight-read-app-token.outputs.token }}"
 
       - name: Publish preflight status
         if: always() && github.event_name == 'pull_request_target'
         env:
-          GH_TOKEN: ${{ steps.preflight-app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
           CONFIG_CHANGED: ${{ steps.detect.outputs.config_changed }}
           JOB_STATUS: ${{ job.status }}
           PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha || github.event.pull_request.merge_commit_sha }}
