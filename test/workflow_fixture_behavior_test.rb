@@ -24,7 +24,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     @stale_step ||= apply_workflow.fetch("jobs").fetch("apply").fetch("steps").find { |step| step["name"] == "Check for newer main commit after apply" }
   end
 
-  def jq(expression, input, args = {}, slurp: true)
+  def jq(expression, input, slurp: true, **args)
     command = ["jq"]
     command << "-s" if slurp
     args.each do |key, value|
@@ -104,7 +104,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     ]
 
     filter = '[ .[]? | select(.merged_at != null) | select(.head.repo.full_name == $repository) | select(.base.repo.full_name == $repository) | select(.base.ref == "main") | select(.user.login == $app_login) | select(.head.ref | startswith("automation/repository-request-")) ] | length'
-    assert_equal "1", jq(filter, prs, "repository" => repository, "app_login" => app_login, slurp: false)
+    assert_equal "1", jq(filter, prs, slurp: false, repository: repository, app_login: app_login)
   end
 
   def test_apply_stale_revision_step_documents_reconciliation
