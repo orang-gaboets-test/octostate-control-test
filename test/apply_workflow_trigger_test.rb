@@ -13,9 +13,11 @@ class ApplyWorkflowTriggerTest < Minitest::Test
   def test_verifies_the_upstream_workflow_path
     steps = apply_job.fetch("steps")
     trigger = steps.find { |step| step["name"] == "Verify triggering workflow path" }
+    checkout = steps.find { |step| step["name"] == "Checkout validated commit" }
     provenance = steps.find { |step| step["name"] == "Verify apply provenance" }
 
     refute_nil trigger
+    refute_nil checkout
     refute_nil provenance
 
     assert_equal "${{ github.token }}", trigger.fetch("env").fetch("GH_TOKEN")
@@ -23,5 +25,6 @@ class ApplyWorkflowTriggerTest < Minitest::Test
     assert_includes trigger.fetch("run"), ".github/workflows/validate.yml@*"
     assert_includes trigger.fetch("run"), "Unexpected triggering workflow path"
     assert_operator steps.index(trigger), :<, steps.index(provenance)
+    assert_equal false, checkout.fetch("with").fetch("persist-credentials")
   end
 end
