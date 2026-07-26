@@ -146,7 +146,7 @@ jobs:
 
       - name: Run workflow regression tests
         if: github.event_name != 'pull_request_target'
-        run: ruby -e 'require "./test/validate_workflow_preflight_test"; require "./test/apply_workflow_recovery_test"'
+        run: ruby -e 'Dir["./test/*_test.rb"].sort.each { |file| require file }'
 
       - name: Set up Go
         if: github.event_name == 'push' || steps.detect.outputs.config_changed == 'true'

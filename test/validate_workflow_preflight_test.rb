@@ -16,6 +16,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     steps = validate_job.fetch("steps")
     checkout = steps.find { |step| step["name"] == "Checkout" }
     workflow_yaml = steps.find { |step| step["name"] == "Validate workflow YAML" }
+    regression = steps.find { |step| step["name"] == "Run workflow regression tests" }
     status_token = steps.find { |step| step["name"] == "Create preflight status GitHub App token" }
     apply_token = steps.find { |step| step["name"] == "Create preflight read GitHub App token" }
     provenance = steps.find { |step| step["name"] == "Check organization-change provenance" }
@@ -25,6 +26,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
 
     refute_nil checkout
     refute_nil workflow_yaml
+    refute_nil regression
     refute_nil status_token
     refute_nil apply_token
     refute_nil provenance
@@ -36,6 +38,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_includes checkout.fetch("if"), "steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("run"), '*.{yml,yaml}'
+    assert_includes regression.fetch("run"), 'Dir["./test/*_test.rb"]'
     assert_equal "${{ github.event.repository.name }}", status_token.fetch("with").fetch("repositories")
     assert_equal "write", status_token.fetch("with").fetch("permission-statuses")
     assert_equal "read", status_token.fetch("with").fetch("permission-pull-requests")
