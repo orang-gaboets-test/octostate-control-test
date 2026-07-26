@@ -11,6 +11,8 @@ class ApplyWorkflowTriggerTest < Minitest::Test
   end
 
   def test_verifies_the_upstream_workflow_path
+    assert_equal "read", workflow.fetch("permissions").fetch("actions")
+
     steps = apply_job.fetch("steps")
     trigger = steps.find { |step| step["name"] == "Verify triggering workflow path" }
     checkout = steps.find { |step| step["name"] == "Checkout validated commit" }
