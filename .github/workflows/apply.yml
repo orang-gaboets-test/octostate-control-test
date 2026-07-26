@@ -28,6 +28,24 @@ jobs:
       VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
+      - name: Verify triggering workflow path
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          triggering_workflow_path="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID" --jq '.path')"
+          case "$triggering_workflow_path" in
+            .github/workflows/validate.yml@*)
+              echo "Trusted workflow trigger path confirmed: $triggering_workflow_path"
+              ;;
+            *)
+              echo "Unexpected triggering workflow path: $triggering_workflow_path"
+              exit 1
+              ;;
+          esac
+
       - name: Verify apply provenance
         id: provenance
         env:
