@@ -88,6 +88,21 @@ Install the PR App on this repository with contents and pull-request write
 access. Install both apps on the `orang-gaboets-test` organization and grant only
 the permissions needed for the workflow they serve.
 
+## Maintainer Checklist
+
+After creating the GitHub Apps, do this in order:
+
+1. Install the PR App on this repository and the preflight App on the
+   `orang-gaboets-test` organization.
+2. Leave webhooks disabled on both apps.
+3. Store each app's client ID in a repository variable and each private key in
+   a repository secret.
+4. Set `OCTOSTATE_PR_APP_LOGIN` to the PR App bot login, keep
+   `OCTOSTATE_BOT_TOKEN` as the separate live-apply PAT, and add the branch
+   rulesets described below.
+5. Smoke test the flow by opening a repository issue to draft a PR, then an
+   organization-change PR to confirm validation and preflight run.
+
 ## App-Only Branch Provenance
 
 Apply a manual GitHub branch ruleset to `automation/repository-request-*` so
