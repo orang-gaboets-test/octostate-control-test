@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           triggering_workflow_path="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID" --jq '.path')"
           case "$triggering_workflow_path" in
-            .github/workflows/validate.yml@*)
+            .github/workflows/validate.yml)
               echo "Trusted workflow trigger path confirmed: $triggering_workflow_path"
               ;;
             *)
@@ -110,15 +110,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify apply token
+      - name: Create apply GitHub App token
         if: steps.provenance.outputs.apply_required == 'true'
-        env:
-          OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
-        run: |
-          if [ -z "$OCTOSTATE_BOT_TOKEN" ]; then
-            echo "OCTOSTATE_BOT_TOKEN is required for live apply."
-            exit 1
-          fi
+        id: apply-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_APPLY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_APPLY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Set up Go
         if: steps.provenance.outputs.apply_required == 'true'
@@ -139,7 +138,7 @@ jobs:
         id: apply
         if: steps.provenance.outputs.apply_required == 'true'
         env:
-          OCTOSTATE_BOT_TOKEN: ${{ secrets.OCTOSTATE_BOT_TOKEN }}
+          OCTOSTATE_APPLY_TOKEN: ${{ steps.apply-app-token.outputs.token }}
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
@@ -162,7 +161,7 @@ jobs:
               exit 1
             fi
           fi
-          octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"
+          octostate config apply --config-dir ./config --token "$OCTOSTATE_APPLY_TOKEN"
           echo "applied=true" >> "$GITHUB_OUTPUT"
 
       - name: Document apply recovery
