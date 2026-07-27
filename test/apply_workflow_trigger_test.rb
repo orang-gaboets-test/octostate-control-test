@@ -36,6 +36,10 @@ class ApplyWorkflowTriggerTest < Minitest::Test
     assert_equal "${{ vars.OCTOSTATE_APPLY_APP_CLIENT_ID }}", app_token.fetch("with").fetch("client-id")
     assert_equal "${{ secrets.OCTOSTATE_APPLY_APP_PRIVATE_KEY }}", app_token.fetch("with").fetch("private-key")
     assert_equal "${{ github.repository_owner }}", app_token.fetch("with").fetch("owner")
+    assert_equal "write", app_token.fetch("with").fetch("permission-administration")
+    assert_equal "read", app_token.fetch("with").fetch("permission-contents")
+    assert_equal "write", app_token.fetch("with").fetch("permission-members")
+    assert_equal "read", app_token.fetch("with").fetch("permission-metadata")
     assert_equal "${{ steps.apply-app-token.outputs.token }}", apply.fetch("env").fetch("OCTOSTATE_APPLY_TOKEN")
     assert_includes apply.fetch("run"), '--token "$OCTOSTATE_APPLY_TOKEN"'
     refute_includes File.read(".github/workflows/apply.yml"), "OCTOSTATE_BOT_TOKEN"

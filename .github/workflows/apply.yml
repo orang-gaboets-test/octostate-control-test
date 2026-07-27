@@ -118,6 +118,10 @@ jobs:
           client-id: ${{ vars.OCTOSTATE_APPLY_APP_CLIENT_ID }}
           private-key: ${{ secrets.OCTOSTATE_APPLY_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          permission-administration: write
+          permission-contents: read
+          permission-members: write
+          permission-metadata: read
 
       - name: Set up Go
         if: steps.provenance.outputs.apply_required == 'true'
