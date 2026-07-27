@@ -11,5 +11,6 @@ class RepositoryRequestWorkflowTest < Minitest::Test
 
     assert_includes condition, "contains(github.event.issue.labels.*.name, 'repository')"
     refute_includes condition, "Create repository:"
+    refute workflow.fetch("permissions").key?("issues")
   end
 end
