@@ -68,7 +68,8 @@ clear provenance trail for the config blob being reconciled.
 
 ## GitHub App Setup
 
-The repository uses three short-lived GitHub App tokens:
+The repository uses three dedicated GitHub Apps, which mint four short-lived
+token roles across the workflows:
 
 - `OCTOSTATE_PR_APP_CLIENT_ID` and `OCTOSTATE_PR_APP_PRIVATE_KEY` power the
   repository-request workflow that drafts PRs from issues.
