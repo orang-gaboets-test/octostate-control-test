@@ -38,6 +38,7 @@ body:
     attributes:
       label: Topics
       description: Optional repository topics, one per line.
+      render: markdown
       placeholder: |
         platform
         service
@@ -56,6 +57,7 @@ body:
     attributes:
       label: Teams with pull access
       description: Optional existing managed team slugs, one per line.
+      render: markdown
       placeholder: |
         readers
         auditors
@@ -64,6 +66,7 @@ body:
     attributes:
       label: Teams with triage access
       description: Optional existing managed team slugs, one per line.
+      render: markdown
       placeholder: |
         support
         operations
@@ -72,6 +75,7 @@ body:
     attributes:
       label: Teams with push access
       description: Optional existing managed team slugs, one per line.
+      render: markdown
       placeholder: |
         platform
         developers
@@ -80,6 +84,7 @@ body:
     attributes:
       label: Teams with maintain access
       description: Optional existing managed team slugs, one per line.
+      render: markdown
       placeholder: |
         maintainers
   - type: textarea
@@ -87,6 +92,7 @@ body:
     attributes:
       label: Teams with admin access
       description: Optional existing managed team slugs, one per line.
+      render: markdown
       placeholder: |
         admins
   - type: textarea
@@ -94,5 +100,6 @@ body:
     attributes:
       label: Reason
       description: Briefly explain why this repository is needed.
+      render: markdown
     validations:
       required: true

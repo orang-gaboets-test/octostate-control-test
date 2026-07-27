@@ -343,6 +343,7 @@ func parseIssueFormSections(body string) map[string]string {
 	sections := map[string]string{}
 	var current string
 	var lines []string
+	inCodeBlock := false
 
 	flush := func() {
 		if current == "" {
@@ -353,7 +354,12 @@ func parseIssueFormSections(body string) map[string]string {
 	}
 
 	for _, rawLine := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
-		if strings.HasPrefix(rawLine, "### ") {
+		trimmedLine := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmedLine, "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if !inCodeBlock && strings.HasPrefix(rawLine, "### ") {
 			flush()
 			current = strings.TrimSpace(strings.TrimPrefix(rawLine, "### "))
 			continue

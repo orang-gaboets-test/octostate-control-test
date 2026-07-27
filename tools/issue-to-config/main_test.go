@@ -245,6 +245,71 @@ func TestApplyRepositoryIssueRejectsMalformedTemplate(t *testing.T) {
 	}
 }
 
+func TestApplyRepositoryIssueIgnoresHeadingLikeTextInTextarea(t *testing.T) {
+	body := strings.Join([]string{
+		"### Repository name",
+		"",
+		"example-service",
+		"",
+		"### Visibility",
+		"",
+		"private",
+		"",
+		"### Description",
+		"",
+		"_No response_",
+		"",
+		"### Homepage",
+		"",
+		"_No response_",
+		"",
+		"### Topics",
+		"",
+		"```markdown",
+		"platform",
+		"```",
+		"",
+		"### Template repository",
+		"",
+		"_No response_",
+		"",
+		"### Teams with pull access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with triage access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with push access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with maintain access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with admin access",
+		"",
+		"_No response_",
+		"",
+		"### Reason",
+		"",
+		"```markdown",
+		"Please add this repo.",
+		"### Teams with admin access",
+		"platform",
+		"```",
+		"",
+	}, "\n")
+
+	updated := applyIssue(t, body)
+	team := findTeam(t, updated, "platform")
+	if len(team.Repositories) != 0 {
+		t.Fatalf("expected code-fenced heading text to stay in textarea content, got %#v", team.Repositories)
+	}
+}
+
 func applyIssue(t *testing.T, body string) organizationConfig {
 	t.Helper()
 
@@ -297,6 +362,15 @@ func issueBody(fields map[string]string) string {
 		"Teams with admin access",
 		"Reason",
 	}
+	textareaLabels := map[string]bool{
+		"Topics":                     true,
+		"Teams with pull access":     true,
+		"Teams with triage access":   true,
+		"Teams with push access":     true,
+		"Teams with maintain access": true,
+		"Teams with admin access":    true,
+		"Reason":                     true,
+	}
 
 	var b strings.Builder
 	for _, label := range labels {
@@ -307,7 +381,13 @@ func issueBody(fields map[string]string) string {
 		b.WriteString("### ")
 		b.WriteString(label)
 		b.WriteString("\n\n")
-		b.WriteString(value)
+		if textareaLabels[label] && value != "_No response_" {
+			b.WriteString("```markdown\n")
+			b.WriteString(value)
+			b.WriteString("\n```")
+		} else {
+			b.WriteString(value)
+		}
 		b.WriteString("\n\n")
 	}
 	return b.String()
