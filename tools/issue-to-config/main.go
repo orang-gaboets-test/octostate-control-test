@@ -151,8 +151,7 @@ func run(eventPath, configPath string) error {
 }
 
 func isRepositoryRequestIssue(event repositoryIssueEvent) bool {
-	return hasLabel(event.Issue.Labels, "repository") ||
-		strings.HasPrefix(strings.ToLower(strings.TrimSpace(event.Issue.Title)), "create repository:")
+	return hasLabel(event.Issue.Labels, "repository")
 }
 
 func hasLabel(labels []issueLabel, want string) bool {

@@ -49,12 +49,12 @@ func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
 	}
 }
 
-func TestIsRepositoryRequestIssueAcceptsTitleFallback(t *testing.T) {
+func TestIsRepositoryRequestIssueRejectsTitleOnlyRequest(t *testing.T) {
 	event := repositoryIssueEvent{}
 	event.Issue.Title = "Create repository: example-service"
 
-	if !isRepositoryRequestIssue(event) {
-		t.Fatal("expected title prefix to identify repository request")
+	if isRepositoryRequestIssue(event) {
+		t.Fatal("did not expect title prefix alone to identify repository request")
 	}
 }
 
