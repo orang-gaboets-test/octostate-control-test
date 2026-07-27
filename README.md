@@ -86,6 +86,17 @@ The repository uses three short-lived GitHub App tokens:
   short-lived installation token from the Apply App and uses it for
   `octostate config apply`.
 
+Install the Apply App with:
+
+- Repository access: All repositories
+- Administration: Read and write
+- Contents: Read-only
+- Members: Read and write
+- Metadata: Read-only
+
+The organization must also allow GitHub Apps to create every repository
+visibility supported by the request workflow.
+
 Install the PR App on this repository with contents and pull-request write
 access. Install the preflight and apply Apps on the `orang-gaboets-test`
 organization and grant only the permissions needed for the workflow they serve.
