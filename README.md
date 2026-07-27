@@ -68,7 +68,7 @@ clear provenance trail for the config blob being reconciled.
 
 ## GitHub App Setup
 
-The repository uses three short-lived GitHub App tokens and one live-apply secret:
+The repository uses three short-lived GitHub App tokens:
 
 - `OCTOSTATE_PR_APP_CLIENT_ID` and `OCTOSTATE_PR_APP_PRIVATE_KEY` power the
   repository-request workflow that drafts PRs from issues.
@@ -81,24 +81,25 @@ The repository uses three short-lived GitHub App tokens and one live-apply secre
   organization with read access to pull requests, organization members, and
   repository metadata plus commit-status write access, and grant it access to
   all repositories whose state is managed here.
-- `OCTOSTATE_BOT_TOKEN` powers the live apply workflow after changes land on
-  `main`.
+- `OCTOSTATE_APPLY_APP_CLIENT_ID` and `OCTOSTATE_APPLY_APP_PRIVATE_KEY` power
+  the live apply workflow after changes land on `main`. The workflow mints a
+  short-lived installation token from the Apply App and uses it for
+  `octostate config apply`.
 
 Install the PR App on this repository with contents and pull-request write
-access. Install both apps on the `orang-gaboets-test` organization and grant only
-the permissions needed for the workflow they serve.
+access. Install the preflight and apply Apps on the `orang-gaboets-test`
+organization and grant only the permissions needed for the workflow they serve.
 
 ## Maintainer Checklist
 
 After creating the GitHub Apps, do this in order:
 
-1. Install the PR App on this repository and the preflight App on the
-   `orang-gaboets-test` organization.
-2. Leave webhooks disabled on both apps.
+1. Install the PR App on this repository and the preflight and apply Apps on
+   the `orang-gaboets-test` organization.
+2. Leave webhooks disabled on all three apps.
 3. Store each app's client ID in a repository variable and each private key in
    a repository secret.
-4. Set `OCTOSTATE_PR_APP_LOGIN` to the PR App bot login, keep
-   `OCTOSTATE_BOT_TOKEN` as the separate live-apply PAT, and add the branch
+4. Set `OCTOSTATE_PR_APP_LOGIN` to the PR App bot login and add the branch
    rulesets described below.
 5. Smoke test the flow by opening a repository issue to draft a PR, then an
    organization-change PR to confirm validation and preflight run.
@@ -144,12 +145,13 @@ second pass that:
 3. revalidates the desired state
 4. compares the validated `config/organization.yaml` blob with current `main`
 5. skips the apply only if current `main` has a different desired-state blob
-6. runs `octostate config apply --config-dir ./config --token "$OCTOSTATE_BOT_TOKEN"`
+6. mints a short-lived token from the `Octostate Apply` GitHub App and runs
+   `octostate config apply --config-dir ./config --token "<app-token>"`
 7. checks whether `main` changed desired state during the apply and records a
    stale result
 
-That workflow uses a dedicated bot PAT stored in the `OCTOSTATE_BOT_TOKEN`
-repository secret. `octostate config apply` only executes the supported
+That workflow uses the short-lived installation token from the `Octostate
+Apply` GitHub App. `octostate config apply` only executes the supported
 create/update portion of the plan; unsupported delete/remove drift is reported
 but skipped. Documentation-only commits on `main` stay validation-only and do
 not trigger live apply. A newer successful validation run can reconcile the
@@ -158,8 +160,8 @@ validation/apply cycle. If a live apply run fails after it starts, re-run that
 same workflow run from the Actions tab to retry the validated commit; if main
 has moved to a different desired-state blob, start a new validation/apply
 cycle instead. Direct pushes or unqualified commits that change
-`config/organization.yaml` fail before checkout and before the live-apply token
-is used.
+`config/organization.yaml` fail before checkout and before the live-apply
+token is used.
 
 ## State Directory
 
