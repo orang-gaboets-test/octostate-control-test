@@ -14,8 +14,6 @@ import (
 
 type repositoryIssueEvent struct {
 	Issue struct {
-		Number int          `json:"number"`
-		Title  string       `json:"title"`
 		Body   string       `json:"body"`
 		Labels []issueLabel `json:"labels"`
 	} `json:"issue"`

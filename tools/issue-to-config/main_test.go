@@ -41,7 +41,6 @@ func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 
 func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Anything"
 	event.Issue.Labels = []issueLabel{{Name: "repository"}}
 
 	if !isRepositoryRequestIssue(event) {
@@ -51,7 +50,6 @@ func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
 
 func TestIsRepositoryRequestIssueRejectsTitleOnlyRequest(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Create repository: example-service"
 
 	if isRepositoryRequestIssue(event) {
 		t.Fatal("did not expect title prefix alone to identify repository request")
@@ -60,7 +58,6 @@ func TestIsRepositoryRequestIssueRejectsTitleOnlyRequest(t *testing.T) {
 
 func TestIsRepositoryRequestIssueRejectsUnrelatedIssue(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Create team: platform"
 	event.Issue.Labels = []issueLabel{{Name: "team"}}
 
 	if isRepositoryRequestIssue(event) {
