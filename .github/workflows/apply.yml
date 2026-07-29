@@ -80,7 +80,6 @@ jobs:
           fi
 
           authorized_pr_count="$(gh api \
-            -H "Accept: application/vnd.github.groot-preview+json" \
             "repos/$REPOSITORY/commits/$provenance_commit_sha/pulls" \
             | jq --arg repository "$REPOSITORY" --arg app_login "$OCTOSTATE_PR_APP_LOGIN" '
               [
