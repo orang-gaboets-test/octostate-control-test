@@ -9,7 +9,8 @@
 
 > Repository-request PRs are drafted with a dedicated GitHub App token so the
 > organization-change validation and preflight checks can run on the resulting
-> branch. Normal development PRs do not run octostate checks.
+> branch. All PRs run the trusted preflight gate in CI; only organization-change
+> PRs can later drive live apply on `main`.
 
 ## Desired-state changes
 
@@ -20,4 +21,4 @@
 ## Validation
 
 - [ ] `octostate config validate --config-dir ./config`
-- [ ] `octostate config apply --config-dir ./config --check`
+- [ ] Trusted preflight passed in CI (`octostate config apply --config-dir ./config --check`)

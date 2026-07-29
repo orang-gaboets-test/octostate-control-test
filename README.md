@@ -32,8 +32,7 @@ token so the resulting branches can run organization-change checks.
 ## Validation
 
 All PRs run the validation workflow so the required check always reports a
-clear pass or fail. PRs that do not change `config/organization.yaml` pass
-without running `octostate`. Authorized organization-change PRs run the pinned
+clear pass or fail. The trusted `pull_request_target` path installs the pinned
 CLI version:
 
 ```bash
@@ -42,10 +41,9 @@ octostate config validate --config-dir ./config
 ```
 
 `octostate config validate` is offline and does not require GitHub credentials or
-repository secrets. For authorized organization-change PRs, the trusted
-preflight App publishes an `Octostate preflight` status on the PR merge SHA and
-then runs `octostate config apply --check` with its own GitHub App token as the
-trusted preflight gate before merge.
+repository secrets. The trusted preflight App publishes an `Octostate preflight`
+status on the PR merge SHA and then runs `octostate config apply --check` with
+its own GitHub App token as the trusted preflight gate before merge.
 
 PRs that change `config/organization.yaml` fail unless all of the following are
 true:
@@ -55,12 +53,16 @@ true:
 - the PR author login exactly matches the `OCTOSTATE_PR_APP_LOGIN` repository
   variable
 
-Normal development PRs and fork PRs pass only when they do not change
-`config/organization.yaml`. The workflow uses `pull_request` for unprivileged
-validation and `pull_request_target` for the App-secret preflight; the trusted
-base-branch definition checks out the generated PR merge ref only as
-configuration input and does not execute code from the PR. The `main` branch
-ruleset should follow the Main Branch Ruleset section below.
+Normal development PRs and fork PRs still run the trusted preflight path. When
+they do not change `config/organization.yaml`, the workflow still checks the
+current desired state and publishes the `Octostate preflight` status from the
+same required check. Only organization-change PRs are eligible for live apply.
+The workflow uses `pull_request` for unprivileged validation and
+`pull_request_target` for the trusted preflight path that protects real
+organization changes. The trusted base-branch definition checks out the
+generated PR merge ref only as configuration input and does not execute code
+from the PR. The `main` branch ruleset should follow the Main Branch Ruleset
+section below.
 
 Pushes to `main` must be single-commit pushes or merge results that land as a
 single commit. Multi-commit pushes fail validation so live apply can keep a
@@ -183,8 +185,9 @@ snapshots there.
 
 ## Scope
 
-Only PRs generated from organization-change issues by the dedicated PR App run
-octostate validation and preflight. Normal repository-development PRs and fork
-PRs are outside that workflow. Live apply runs after a successful validation of
-`config/organization.yaml` on `main`, reconciling the exact commit that passed
-checks rather than whatever the branch looks like later.
+Only PRs generated from organization-change issues by the dedicated PR App are
+eligible for live apply. Validation and trusted preflight still run on normal
+repository-development PRs and fork PRs, but they do not alter desired state.
+Live apply runs after a successful validation of `config/organization.yaml` on
+`main`, reconciling the exact commit that passed checks rather than whatever
+the branch looks like later.
