@@ -100,9 +100,9 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
         "FILES_JSON" => files_json
       }
 
-      stdout, stderr, status = Open3.capture3(env, "bash", "-euo", "pipefail", "-c", detect_script)
+      _stdout, stderr, status = Open3.capture3(env, "bash", "-euo", "pipefail", "-c", detect_script)
       output_contents = File.exist?(output) ? File.read(output) : ""
-      [stdout, stderr, status, output_contents]
+      [stderr, status, output_contents]
     end
   end
 
@@ -122,13 +122,13 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
   end
 
   def test_detect_config_change_treats_missing_config_as_changed
-    stdout, stderr, status, output = run_detect_script
+    stderr, status, output = run_detect_script
     assert status.success?, "detect script failed: #{stderr}"
     assert_includes output, "config_changed=true"
   end
 
   def test_detect_config_change_marks_truncated_pr_file_lists_for_workflow_validation
-    stdout, stderr, status, output = run_detect_script(
+    stderr, status, output = run_detect_script(
       merge_config_exists: true,
       changed_files: 2,
       files_json: '[{"filename":"docs/README.md"}]'
