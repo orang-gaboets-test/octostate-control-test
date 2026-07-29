@@ -18,6 +18,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     workflow_yaml = steps.find { |step| step["name"] == "Validate workflow YAML" }
     regression = steps.find { |step| step["name"] == "Run workflow regression tests" }
     setup_go = steps.find { |step| step["name"] == "Set up Go" }
+    install = steps.find { |step| step["name"] == "Install octostate" }
+    validate_config = steps.find { |step| step["name"] == "Validate config" }
     issue_tests = steps.find { |step| step["name"] == "Run issue-to-config tests" }
     status_token = steps.find { |step| step["name"] == "Create preflight status GitHub App token" }
     apply_token = steps.find { |step| step["name"] == "Create preflight read GitHub App token" }
@@ -31,6 +33,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_nil workflow_yaml
     refute_nil regression
     refute_nil setup_go
+    refute_nil install
+    refute_nil validate_config
     refute_nil issue_tests
     refute_nil status_token
     refute_nil apply_token
@@ -40,12 +44,13 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_nil preflight
     refute_nil publish
 
-    assert_includes checkout.fetch("if"), "github.event_name == 'pull_request'"
-    refute_includes checkout.fetch("if"), "steps.detect.outputs.workflow_changed == 'true'"
+    assert_nil checkout["if"]
     assert_includes workflow_yaml.fetch("if"), "github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true'"
     assert_includes workflow_yaml.fetch("run"), '*.{yml,yaml}'
     assert_includes regression.fetch("run"), 'Dir["./test/*_test.rb"]'
     assert_equal "github.event_name != 'pull_request_target'", setup_go.fetch("if")
+    assert_equal "github.event_name != 'pull_request'", install.fetch("if")
+    assert_equal "github.event_name != 'pull_request'", validate_config.fetch("if")
     assert_equal "tools/issue-to-config", issue_tests.fetch("working-directory")
     assert_includes issue_tests.fetch("run"), "go test ./..."
     assert_includes workflow_yaml.fetch("run"), "YAML.safe_load(File.read"
@@ -62,12 +67,15 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", resolve.fetch("env").fetch("GH_TOKEN")
     assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", publish.fetch("env").fetch("GH_TOKEN")
     assert_includes preflight.fetch("run"), '--token "${{ steps.preflight-read-app-token.outputs.token }}"'
+    assert_equal "github.event_name == 'pull_request_target'", preflight.fetch("if")
     assert_operator steps.index(apply_token), :<, steps.index(preflight)
     assert_includes resolve.fetch("run"), "merge_commit_sha"
     assert_includes resolve.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("env").fetch("PRECHECK_SHA"), "merge_commit_sha"
     assert_equal "${{ job.status }}", publish.fetch("env").fetch("JOB_STATUS")
     assert_includes publish.fetch("run"), "No organization config change detected."
+    assert_includes publish.fetch("run"), 'if [ "$JOB_STATUS" = "success" ]'
+    refute_includes publish.fetch("run"), 'if [ "$CONFIG_CHANGED" != "true" ]'
     assert_includes publish.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("if"), "always()"
   end

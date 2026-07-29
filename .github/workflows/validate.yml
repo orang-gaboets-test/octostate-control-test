@@ -42,6 +42,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -49,20 +51,26 @@ jobs:
             exit 0
           fi
 
+          if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
+            MERGE_SHA="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merge_commit_sha // .head.sha')"
+          fi
+
+          if ! base_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$BASE_SHA" --jq .sha)" ||
+             ! merge_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$MERGE_SHA" --jq .sha)"; then
+            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$base_config_sha" = "$merge_config_sha" ]; then
+            echo "config_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
           changed_files_total="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.changed_files')"
           changed_files_json="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --paginate)"
           fetched_file_count="$(printf '%s' "$changed_files_json" | jq -s 'add | length')"
           if [ "$fetched_file_count" -lt "$changed_files_total" ]; then
-            echo "GitHub truncated the PR file list for $PR_NUMBER ($fetched_file_count of $changed_files_total files); treating it as a config-changing PR."
-            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub truncated the PR file list for $PR_NUMBER ($fetched_file_count of $changed_files_total files); treating workflow validation as needed."
             echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
             exit 0
-          fi
-
-          if printf '%s' "$changed_files_json" | jq -s -e 'add | any(.filename == "config/organization.yaml" or (.previous_filename // "") == "config/organization.yaml")' >/dev/null; then
-            echo "config_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "config_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
           if printf '%s' "$changed_files_json" | jq -s -e 'add | any((.filename | startswith(".github/workflows/")) or ((.previous_filename // "") | startswith(".github/workflows/")))' >/dev/null; then
@@ -133,7 +141,6 @@ jobs:
       # as configuration input for octostate, but it must not run workflow
       # linting or repository code from the PR.
       - name: Checkout
-        if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true')
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}
@@ -161,15 +168,15 @@ jobs:
         run: go test ./...
 
       - name: Install octostate
-        if: github.event_name == 'push' || steps.detect.outputs.config_changed == 'true'
+        if: github.event_name != 'pull_request'
         run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
 
       - name: Validate config
-        if: github.event_name == 'push' || steps.detect.outputs.config_changed == 'true'
+        if: github.event_name != 'pull_request'
         run: octostate config validate --config-dir ./config
 
       - name: Create preflight read GitHub App token
-        if: github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true'
+        if: github.event_name == 'pull_request_target'
         id: preflight-read-app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -180,7 +187,7 @@ jobs:
           permission-metadata: read
 
       - name: Preflight apply
-        if: github.event_name == 'pull_request_target' && steps.detect.outputs.config_changed == 'true'
+        if: github.event_name == 'pull_request_target'
         run: octostate config apply --config-dir ./config --check --token "${{ steps.preflight-read-app-token.outputs.token }}"
 
       - name: Publish preflight status
