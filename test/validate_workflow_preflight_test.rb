@@ -21,6 +21,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     issue_tests = steps.find { |step| step["name"] == "Run issue-to-config tests" }
     status_token = steps.find { |step| step["name"] == "Create preflight status GitHub App token" }
     apply_token = steps.find { |step| step["name"] == "Create preflight read GitHub App token" }
+    skip = steps.find { |step| step["name"] == "Skip Octostate preflight for non-organization PRs" }
     provenance = steps.find { |step| step["name"] == "Check organization-change provenance" }
     resolve = steps.find { |step| step["name"] == "Resolve preflight status target" }
     preflight = steps.find { |step| step["name"] == "Preflight apply" }
@@ -33,6 +34,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_nil issue_tests
     refute_nil status_token
     refute_nil apply_token
+    assert_nil skip
     refute_nil provenance
     refute_nil resolve
     refute_nil preflight
@@ -63,6 +65,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_includes resolve.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("env").fetch("PRECHECK_SHA"), "merge_commit_sha"
     assert_equal "${{ job.status }}", publish.fetch("env").fetch("JOB_STATUS")
+    assert_includes publish.fetch("run"), "No organization config change detected."
     assert_includes publish.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("if"), "always()"
   end
