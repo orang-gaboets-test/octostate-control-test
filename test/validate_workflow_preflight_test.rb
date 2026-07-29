@@ -3,7 +3,7 @@ require "yaml"
 
 class ValidateWorkflowPreflightTest < Minitest::Test
   def workflow
-    @workflow ||= YAML.load_file(".github/workflows/validate.yml")
+    @workflow ||= YAML.safe_load(File.read(".github/workflows/validate.yml"), aliases: false)
   end
 
   def validate_job
@@ -48,6 +48,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_equal "github.event_name != 'pull_request_target'", setup_go.fetch("if")
     assert_equal "tools/issue-to-config", issue_tests.fetch("working-directory")
     assert_includes issue_tests.fetch("run"), "go test ./..."
+    assert_includes workflow_yaml.fetch("run"), "YAML.safe_load(File.read"
+    refute_includes workflow_yaml.fetch("run"), "YAML.load_file"
     assert_equal "${{ github.event.repository.name }}", status_token.fetch("with").fetch("repositories")
     assert_equal "write", status_token.fetch("with").fetch("permission-statuses")
     assert_equal "read", status_token.fetch("with").fetch("permission-pull-requests")

@@ -3,7 +3,7 @@ require "yaml"
 
 class ApplyWorkflowTriggerTest < Minitest::Test
   def workflow
-    @workflow ||= YAML.load_file(".github/workflows/apply.yml")
+    @workflow ||= YAML.safe_load(File.read(".github/workflows/apply.yml"), aliases: false)
   end
 
   def apply_job

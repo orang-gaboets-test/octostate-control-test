@@ -142,7 +142,7 @@ jobs:
       - name: Validate workflow YAML
         if: github.event_name == 'push' || (github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true')
         run: |
-          ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].sort.each { |file| YAML.load_file(file) }'
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].sort.each { |file| YAML.safe_load(File.read(file), aliases: false) }'
 
       - name: Run workflow regression tests
         if: github.event_name != 'pull_request_target'

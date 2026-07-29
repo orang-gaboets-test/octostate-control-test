@@ -3,7 +3,7 @@ require "yaml"
 
 class RepositoryRequestWorkflowTest < Minitest::Test
   def workflow
-    @workflow ||= YAML.load_file(".github/workflows/repository-request.yml")
+    @workflow ||= YAML.safe_load(File.read(".github/workflows/repository-request.yml"), aliases: false)
   end
 
   def test_only_repository_label_triggers_drafting

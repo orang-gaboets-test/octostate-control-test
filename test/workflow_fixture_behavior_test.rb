@@ -5,11 +5,11 @@ require "yaml"
 
 class WorkflowFixtureBehaviorTest < Minitest::Test
   def validate_workflow
-    @validate_workflow ||= YAML.load_file(".github/workflows/validate.yml")
+    @validate_workflow ||= YAML.safe_load(File.read(".github/workflows/validate.yml"), aliases: false)
   end
 
   def apply_workflow
-    @apply_workflow ||= YAML.load_file(".github/workflows/apply.yml")
+    @apply_workflow ||= YAML.safe_load(File.read(".github/workflows/apply.yml"), aliases: false)
   end
 
   def detect_step
