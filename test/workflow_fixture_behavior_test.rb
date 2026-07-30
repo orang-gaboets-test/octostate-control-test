@@ -26,10 +26,6 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     @provenance_step ||= apply_workflow.fetch("jobs").fetch("apply").fetch("steps").find { |step| step["name"] == "Verify apply provenance" }
   end
 
-  def provenance_script
-    provenance_step.fetch("run")
-  end
-
   def stale_step
     @stale_step ||= apply_workflow.fetch("jobs").fetch("apply").fetch("steps").find { |step| step["name"] == "Check for newer main commit after apply" }
   end
@@ -174,7 +170,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
         "PARENT_CONFIG_EXISTS" => parent_config_exists ? "true" : "false"
       }
 
-      _stdout, stderr, status = Open3.capture3(env, "bash", "-euo", "pipefail", "-c", provenance_script)
+      _stdout, stderr, status = Open3.capture3(env, "bash", "-euo", "pipefail", "-c", provenance_step.fetch("run"))
       output_contents = File.exist?(output) ? File.read(output) : ""
       [stderr, status, output_contents]
     end

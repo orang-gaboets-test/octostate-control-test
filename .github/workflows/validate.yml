@@ -78,14 +78,6 @@ jobs:
             echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Resolve preflight status target
-        if: github.event_name == 'pull_request_target'
-        id: preflight-status
-        run: |
-          set -euo pipefail
-          status_sha="${{ steps.detect.outputs.merge_sha }}"
-          echo "sha=$status_sha" >> "$GITHUB_OUTPUT"
-
       - name: Create preflight status GitHub App token
         if: github.event_name == 'pull_request_target'
         id: preflight-status-app-token
@@ -102,7 +94,7 @@ jobs:
         if: github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
-          PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha }}
+          PRECHECK_SHA: ${{ steps.detect.outputs.merge_sha }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -199,7 +191,7 @@ jobs:
           GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
           CONFIG_CHANGED: ${{ steps.detect.outputs.config_changed }}
           JOB_STATUS: ${{ job.status }}
-          PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha }}
+          PRECHECK_SHA: ${{ steps.detect.outputs.merge_sha }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
