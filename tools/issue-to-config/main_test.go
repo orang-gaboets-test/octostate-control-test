@@ -231,6 +231,17 @@ func TestApplyRepositoryIssueRejectsDuplicateTeamPermission(t *testing.T) {
 	}
 }
 
+func TestApplyRepositoryIssueRejectsDuplicateTeamSlugWithinPermissionField(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name":        "example-service",
+		"Visibility":             "private",
+		"Teams with pull access": "platform\nplatform",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "appears more than once") {
+		t.Fatalf("expected duplicate team slug error, got %v", err)
+	}
+}
+
 func TestApplyRepositoryIssueRejectsMalformedTemplate(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":     "example-service",

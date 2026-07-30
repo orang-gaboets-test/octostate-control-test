@@ -225,8 +225,13 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 
 	teamPermissionBySlug := map[string]string{}
 	for _, field := range orderedPermissions {
+		fieldSlugs := map[string]struct{}{}
 		for _, slug := range listSection(sections, field.label) {
 			key := strings.ToLower(slug)
+			if _, ok := fieldSlugs[key]; ok {
+				return repositoryRequest{}, fmt.Errorf("team %q appears more than once in %s access", slug, field.permission)
+			}
+			fieldSlugs[key] = struct{}{}
 			if existing, ok := teamPermissionBySlug[key]; ok {
 				return repositoryRequest{}, fmt.Errorf("team %q appears under both %s and %s access", slug, existing, field.permission)
 			}
