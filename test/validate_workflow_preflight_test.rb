@@ -70,6 +70,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_equal "read", apply_token.fetch("with").fetch("permission-members")
     assert_equal "read", apply_token.fetch("with").fetch("permission-metadata")
     refute apply_token.fetch("with").key?("permission-statuses")
+    assert_equal "${{ github.event_name == 'pull_request_target' && steps.detect.outputs.merge_sha || github.sha }}", checkout.fetch("with").fetch("ref")
     assert_operator steps.index(status_token), :<, steps.index(pending)
     assert_operator steps.index(pending), :<, steps.index(provenance)
     assert_operator steps.index(status_token), :<, steps.index(publish)
