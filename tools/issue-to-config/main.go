@@ -386,12 +386,19 @@ var issueFormSections = []issueFormSection{
 
 func lastHeadingIndex(lines []string, label string, limit int) int {
 	needle := "### " + label
-	for i := limit - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) == needle {
-			return i
+	last := -1
+	inFence := false
+	for i := 0; i < limit; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence && trimmed == needle {
+			last = i
 		}
 	}
-	return -1
+	return last
 }
 
 func trimTextareaSection(lines []string) []string {

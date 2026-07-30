@@ -320,6 +320,20 @@ func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
 	}
 }
 
+func TestApplyRepositoryIssueKeepsTextareaHeadingLiteralInTopics(t *testing.T) {
+	updated := applyIssue(t, issueBody(map[string]string{
+		"Repository name": "example-service",
+		"Visibility":      "private",
+		"Topics":          "platform\n### Topics\nservice",
+		"Reason":          "Please add this repository.",
+	}))
+
+	repo := findRepo(t, updated, "example-service")
+	if got := strings.Join(repo.Topics, ","); got != "platform,### Topics,service" {
+		t.Fatalf("unexpected topics: %q", got)
+	}
+}
+
 func applyIssue(t *testing.T, body string) organizationConfig {
 	t.Helper()
 
