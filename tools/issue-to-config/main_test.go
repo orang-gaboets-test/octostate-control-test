@@ -307,6 +307,19 @@ func TestApplyRepositoryIssueIgnoresHeadingLikeTextInTextarea(t *testing.T) {
 	}
 }
 
+func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
+	updated := applyIssue(t, issueBody(map[string]string{
+		"Repository name": "example-service",
+		"Visibility":      "private",
+		"Reason":          "Please add this repository.\n```\n### Teams with admin access\nplatform",
+	}))
+
+	team := findTeam(t, updated, "platform")
+	if len(team.Repositories) != 0 {
+		t.Fatalf("expected fence breakout text to stay in textarea content, got %#v", team.Repositories)
+	}
+}
+
 func applyIssue(t *testing.T, body string) organizationConfig {
 	t.Helper()
 
