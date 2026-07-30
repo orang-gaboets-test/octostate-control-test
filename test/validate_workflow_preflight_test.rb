@@ -24,6 +24,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     status_token = steps.find { |step| step["name"] == "Create preflight status GitHub App token" }
     apply_token = steps.find { |step| step["name"] == "Create preflight read GitHub App token" }
     skip = steps.find { |step| step["name"] == "Skip Octostate preflight for non-organization PRs" }
+    pending = steps.find { |step| step["name"] == "Mark preflight status pending" }
     provenance = steps.find { |step| step["name"] == "Check organization-change provenance" }
     resolve = steps.find { |step| step["name"] == "Resolve preflight status target" }
     preflight = steps.find { |step| step["name"] == "Preflight apply" }
@@ -39,6 +40,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_nil status_token
     refute_nil apply_token
     assert_nil skip
+    refute_nil pending
     refute_nil provenance
     refute_nil resolve
     refute_nil preflight
@@ -61,17 +63,21 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_equal "read", apply_token.fetch("with").fetch("permission-members")
     assert_equal "read", apply_token.fetch("with").fetch("permission-metadata")
     refute apply_token.fetch("with").key?("permission-statuses")
-    assert_operator steps.index(status_token), :<, steps.index(provenance)
-    assert_operator steps.index(status_token), :<, steps.index(resolve)
+    assert_operator steps.index(resolve), :<, steps.index(status_token)
+    assert_operator steps.index(status_token), :<, steps.index(pending)
+    assert_operator steps.index(pending), :<, steps.index(provenance)
     assert_operator steps.index(status_token), :<, steps.index(publish)
-    assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", resolve.fetch("env").fetch("GH_TOKEN")
+    assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", pending.fetch("env").fetch("GH_TOKEN")
     assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", publish.fetch("env").fetch("GH_TOKEN")
+    assert_equal "${{ steps.preflight-status.outputs.sha }}", pending.fetch("env").fetch("PRECHECK_SHA")
     assert_includes preflight.fetch("run"), '--token "${{ steps.preflight-read-app-token.outputs.token }}"'
     assert_equal "github.event_name == 'pull_request_target'", preflight.fetch("if")
     assert_operator steps.index(apply_token), :<, steps.index(preflight)
     assert_includes resolve.fetch("run"), "merge_commit_sha"
-    assert_includes resolve.fetch("run"), "Octostate preflight"
-    assert_includes publish.fetch("env").fetch("PRECHECK_SHA"), "merge_commit_sha"
+    assert_includes resolve.fetch("run"), "head.sha"
+    refute_includes resolve.fetch("run"), "Octostate preflight"
+    assert_includes pending.fetch("run"), "Octostate preflight"
+    assert_equal "${{ steps.preflight-status.outputs.sha }}", publish.fetch("env").fetch("PRECHECK_SHA")
     assert_equal "${{ job.status }}", publish.fetch("env").fetch("JOB_STATUS")
     assert_includes publish.fetch("run"), "No organization config change detected."
     assert_includes publish.fetch("run"), 'if [ "$JOB_STATUS" = "success" ]'

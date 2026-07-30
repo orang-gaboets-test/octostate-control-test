@@ -79,6 +79,17 @@ jobs:
             echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve preflight status target
+        if: github.event_name == 'pull_request_target'
+        id: preflight-status
+        run: |
+          set -euo pipefail
+          status_sha="${{ github.event.pull_request.merge_commit_sha }}"
+          if [ -z "$status_sha" ] || [ "$status_sha" = "null" ]; then
+            status_sha="${{ github.event.pull_request.head.sha }}"
+          fi
+          echo "sha=$status_sha" >> "$GITHUB_OUTPUT"
+
       - name: Create preflight status GitHub App token
         if: github.event_name == 'pull_request_target'
         id: preflight-status-app-token
@@ -90,6 +101,23 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-statuses: write
           permission-pull-requests: read
+
+      - name: Mark preflight status pending
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
+          PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          description='Trusted preflight is running'
+
+          gh api "repos/$REPOSITORY/statuses/$PRECHECK_SHA" \
+            -f state=pending \
+            -f context='Octostate preflight' \
+            -f description="$description" \
+            -f target_url="$RUN_URL" >/dev/null
 
       - name: Check organization-change provenance
         if: github.event_name == 'pull_request_target'
@@ -115,27 +143,6 @@ jobs:
           fi
 
           echo "Organization config change is App-authored."
-
-      - name: Resolve preflight status target
-        if: github.event_name == 'pull_request_target'
-        id: preflight-status
-        env:
-          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          status_sha="${{ github.event.pull_request.merge_commit_sha }}"
-          if [ -z "$status_sha" ] || [ "$status_sha" = "null" ]; then
-            status_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merge_commit_sha // .head.sha')"
-          fi
-          echo "sha=$status_sha" >> "$GITHUB_OUTPUT"
-          gh api "repos/$REPOSITORY/statuses/$status_sha" \
-            -f state=pending \
-            -f context='Octostate preflight' \
-            -f description='Trusted preflight is running' \
-            -f target_url="$RUN_URL" >/dev/null
 
       # SECURITY: The trusted pull_request_target path may read the PR merge ref
       # as configuration input for octostate, but it must not run workflow
@@ -196,7 +203,7 @@ jobs:
           GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
           CONFIG_CHANGED: ${{ steps.detect.outputs.config_changed }}
           JOB_STATUS: ${{ job.status }}
-          PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha || github.event.pull_request.merge_commit_sha }}
+          PRECHECK_SHA: ${{ steps.preflight-status.outputs.sha }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
