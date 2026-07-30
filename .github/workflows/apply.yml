@@ -60,7 +60,17 @@ jobs:
           validated_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$VALIDATED_SHA" --jq .sha)"
           parent_config_blob=""
           if [ -n "$parent_sha" ]; then
-            parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha)"
+            if parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha 2>&1)"; then
+              :
+            else
+              case "$parent_config_blob" in
+                *"Not Found"*|*"404"*) parent_config_blob="" ;;
+                *)
+                  printf '%s\n' "$parent_config_blob" >&2
+                  exit 1
+                  ;;
+              esac
+            fi
           fi
           if [ "$validated_config_blob" = "$parent_config_blob" ]; then
             echo "apply_required=false" >> "$GITHUB_OUTPUT"
