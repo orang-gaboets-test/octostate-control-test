@@ -12,7 +12,8 @@ class ApplyWorkflowRecoveryTest < Minitest::Test
 
     refute_nil recovery
     assert_includes recovery.fetch("if"), "failure() && steps.provenance.outputs.apply_required == 'true'"
-    assert_includes recovery.fetch("run"), "Re-run this workflow run"
-    assert_includes recovery.fetch("run"), "same validated commit"
+    assert_includes recovery.fetch("run"), "validated commit is still current"
+    assert_includes recovery.fetch("run"), "retry the live apply"
+    assert_includes recovery.fetch("run"), "start a new validation/apply cycle"
   end
 end

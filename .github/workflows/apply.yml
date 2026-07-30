@@ -184,7 +184,7 @@ jobs:
             echo
             printf 'Validated commit: `%s`\n' "$VALIDATED_SHA"
             echo
-            echo "Re-run this workflow run from the Actions tab to retry the same validated commit."
+            echo "If the validated commit is still current, re-run this workflow run from the Actions tab to retry the live apply."
             echo "If main has moved to a different desired-state blob, start a new validation/apply cycle instead."
           } >> "$GITHUB_STEP_SUMMARY"
 
