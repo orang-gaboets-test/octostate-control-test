@@ -10,6 +10,15 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     workflow.fetch("jobs").fetch("validate")
   end
 
+  def test_validates_issue_template_yaml
+    workflow_run = validate_job.fetch("steps").find { |step| step["name"] == "Validate workflow YAML" }.fetch("run")
+    assert_includes workflow_run, ".github/{workflows,ISSUE_TEMPLATE}/*.{yml,yaml}"
+
+    Dir[".github/ISSUE_TEMPLATE/*.{yml,yaml}"].sort.each do |file|
+      YAML.safe_load(File.read(file), aliases: false)
+    end
+  end
+
   def test_publishes_octostate_preflight_status
     refute workflow.fetch("permissions").key?("statuses")
 
