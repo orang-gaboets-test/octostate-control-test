@@ -342,44 +342,76 @@ func teamHasRepository(team teamSpec, organization, name string) bool {
 }
 
 func parseIssueFormSections(body string) map[string]string {
-	sections := map[string]string{}
-	var current string
-	var lines []string
-	inCodeBlock := false
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	sections := make(map[string]string, len(issueFormSections))
+	limit := len(lines)
 
-	flush := func() {
-		if current == "" {
-			return
-		}
-		sections[current] = strings.TrimSpace(strings.Join(lines, "\n"))
-		lines = nil
-	}
-
-	normalizedLines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
-	for i, rawLine := range normalizedLines {
-		trimmedLine := strings.TrimSpace(rawLine)
-		if strings.HasPrefix(trimmedLine, "```") {
-			if !inCodeBlock {
-				inCodeBlock = true
-				continue
-			}
-			if i+1 == len(normalizedLines) || strings.TrimSpace(normalizedLines[i+1]) == "" {
-				inCodeBlock = false
-				continue
-			}
-		}
-		if !inCodeBlock && strings.HasPrefix(rawLine, "### ") {
-			flush()
-			current = strings.TrimSpace(strings.TrimPrefix(rawLine, "### "))
+	for i := len(issueFormSections) - 1; i >= 0; i-- {
+		field := issueFormSections[i]
+		start := lastHeadingIndex(lines, field.label, limit)
+		if start == -1 {
 			continue
 		}
-		if current != "" {
-			lines = append(lines, rawLine)
+
+		sectionLines := lines[start+1 : limit]
+		if field.textarea {
+			sectionLines = trimTextareaSection(sectionLines)
 		}
+		sections[field.label] = strings.TrimSpace(strings.Join(sectionLines, "\n"))
+		limit = start
 	}
-	flush()
 
 	return sections
+}
+
+type issueFormSection struct {
+	label    string
+	textarea bool
+}
+
+var issueFormSections = []issueFormSection{
+	{label: "Repository name"},
+	{label: "Visibility"},
+	{label: "Description"},
+	{label: "Homepage"},
+	{label: "Topics", textarea: true},
+	{label: "Template repository"},
+	{label: "Teams with pull access", textarea: true},
+	{label: "Teams with triage access", textarea: true},
+	{label: "Teams with push access", textarea: true},
+	{label: "Teams with maintain access", textarea: true},
+	{label: "Teams with admin access", textarea: true},
+	{label: "Reason", textarea: true},
+}
+
+func lastHeadingIndex(lines []string, label string, limit int) int {
+	needle := "### " + label
+	for i := limit - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == needle {
+			return i
+		}
+	}
+	return -1
+}
+
+func trimTextareaSection(lines []string) []string {
+	start := 0
+	end := len(lines)
+
+	for start < end && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if start < end && strings.HasPrefix(strings.TrimSpace(lines[start]), "```") {
+		start++
+	}
+	if end > start && strings.HasPrefix(strings.TrimSpace(lines[end-1]), "```") {
+		end--
+	}
+
+	return lines[start:end]
 }
 
 func valueSection(sections map[string]string, label string) string {

@@ -311,7 +311,7 @@ func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
 		"Repository name": "example-service",
 		"Visibility":      "private",
-		"Reason":          "Please add this repository.\n```\n### Teams with admin access\nplatform",
+		"Reason":          "Please add this repository.\n```\n\n### Teams with admin access\nplatform",
 	}))
 
 	team := findTeam(t, updated, "platform")
