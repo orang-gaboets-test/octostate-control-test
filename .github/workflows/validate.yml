@@ -42,8 +42,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -51,12 +49,13 @@ jobs:
             exit 0
           fi
 
-          if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
-            MERGE_SHA="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merge_commit_sha // .head.sha')"
-          fi
+          pr_json="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          base_sha="$(printf '%s' "$pr_json" | jq -r '.base.sha')"
+          merge_sha="$(printf '%s' "$pr_json" | jq -r '.merge_commit_sha // .head.sha')"
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
-          if ! base_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$BASE_SHA" --jq .sha)" ||
-             ! merge_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$MERGE_SHA" --jq .sha)"; then
+          if ! base_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$base_sha" --jq .sha)" ||
+             ! merge_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$merge_sha" --jq .sha)"; then
             echo "config_changed=true" >> "$GITHUB_OUTPUT"
           elif [ "$base_config_sha" = "$merge_config_sha" ]; then
             echo "config_changed=false" >> "$GITHUB_OUTPUT"
@@ -84,10 +83,7 @@ jobs:
         id: preflight-status
         run: |
           set -euo pipefail
-          status_sha="${{ github.event.pull_request.merge_commit_sha }}"
-          if [ -z "$status_sha" ] || [ "$status_sha" = "null" ]; then
-            status_sha="${{ github.event.pull_request.head.sha }}"
-          fi
+          status_sha="${{ steps.detect.outputs.merge_sha }}"
           echo "sha=$status_sha" >> "$GITHUB_OUTPUT"
 
       - name: Create preflight status GitHub App token

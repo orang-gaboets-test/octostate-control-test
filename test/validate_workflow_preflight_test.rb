@@ -82,9 +82,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_includes preflight.fetch("run"), '--token "${{ steps.preflight-read-app-token.outputs.token }}"'
     assert_equal "github.event_name == 'pull_request_target'", preflight.fetch("if")
     assert_operator steps.index(apply_token), :<, steps.index(preflight)
-    assert_includes resolve.fetch("run"), "merge_commit_sha"
-    assert_includes resolve.fetch("run"), "head.sha"
-    refute_includes resolve.fetch("run"), "Octostate preflight"
+    assert_includes resolve.fetch("run"), "steps.detect.outputs.merge_sha"
+    refute_includes resolve.fetch("run"), "merge_commit_sha"
     assert_includes pending.fetch("run"), "Octostate preflight"
     assert_equal "${{ steps.preflight-status.outputs.sha }}", publish.fetch("env").fetch("PRECHECK_SHA")
     assert_equal "${{ job.status }}", publish.fetch("env").fetch("JOB_STATUS")

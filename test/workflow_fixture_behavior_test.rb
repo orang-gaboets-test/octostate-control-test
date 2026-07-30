@@ -46,7 +46,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     stdout.strip
   end
 
-  def run_detect_script(merge_config_exists: false, changed_files: 1, files_json: '[{"filename":"docs/README.md"}]')
+  def run_detect_script(merge_config_state: :missing, changed_files: 1, files_json: '[{"filename":"docs/README.md"}]')
     Dir.mktmpdir do |dir|
       bin = File.join(dir, "bin")
       FileUtils.mkdir_p(bin)
@@ -56,26 +56,28 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
         #!/bin/sh
         set -eu
         case "$2" in
-          "repos/orang-gaboets-test/octostate-control-test/contents/config/organization.yaml?ref=base-sha")
-            printf '%s\n' '{"sha":"base-config-sha"}'
-            ;;
-          "repos/orang-gaboets-test/octostate-control-test/contents/config/organization.yaml?ref=merge-sha")
-            if [ "$MERGE_CONFIG_EXISTS" = "true" ]; then
-              printf '%s\n' '{"sha":"base-config-sha"}'
-            else
-              printf '%s\n' 'Not Found' >&2
-              exit 1
-            fi
-            ;;
           "repos/orang-gaboets-test/octostate-control-test/pulls/42")
             case "${4:-}" in
               ".changed_files")
                 printf '%s\n' "$CHANGED_FILES"
                 ;;
               *)
-                printf '%s\n' 'merge-sha'
+                printf '%s\n' '{"base":{"sha":"base-sha"},"head":{"sha":"head-sha"},"merge_commit_sha":"current-merge-sha"}'
                 ;;
             esac
+            ;;
+          "repos/orang-gaboets-test/octostate-control-test/contents/config/organization.yaml?ref=base-sha")
+            printf '%s\n' '{"sha":"base-config-sha"}'
+            ;;
+          "repos/orang-gaboets-test/octostate-control-test/contents/config/organization.yaml?ref=current-merge-sha")
+            case "$MERGE_CONFIG_STATE" in
+              same) printf '%s\n' '{"sha":"base-config-sha"}' ;;
+              different) printf '%s\n' '{"sha":"current-merge-config-sha"}' ;;
+              *) printf '%s\n' 'Not Found' >&2; exit 1 ;;
+            esac
+            ;;
+          "repos/orang-gaboets-test/octostate-control-test/contents/config/organization.yaml?ref=old-merge-sha")
+            printf '%s\n' '{"sha":"base-config-sha"}'
             ;;
           "repos/orang-gaboets-test/octostate-control-test/pulls/42/files")
             printf '%s\n' "$FILES_JSON"
@@ -96,10 +98,10 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
         "GITHUB_EVENT_NAME" => "pull_request_target",
         "PR_NUMBER" => "42",
         "REPOSITORY" => "orang-gaboets-test/octostate-control-test",
-        "BASE_SHA" => "base-sha",
-        "MERGE_SHA" => "merge-sha",
+        "BASE_SHA" => "old-base-sha",
+        "MERGE_SHA" => "old-merge-sha",
         "GH_TOKEN" => "token",
-        "MERGE_CONFIG_EXISTS" => merge_config_exists ? "true" : "false",
+        "MERGE_CONFIG_STATE" => merge_config_state.to_s,
         "CHANGED_FILES" => changed_files.to_s,
         "FILES_JSON" => files_json
       }
@@ -180,8 +182,12 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
 
   def test_detect_config_change_mentions_blob_lookup_and_workflow_detection
     run = detect_step.fetch("run")
-    assert_includes run, 'contents/config/organization.yaml?ref=$BASE_SHA'
-    assert_includes run, 'contents/config/organization.yaml?ref=$MERGE_SHA'
+    assert_includes run, 'gh api "repos/$REPOSITORY/pulls/$PR_NUMBER"'
+    assert_includes run, "jq -r '.base.sha'"
+    assert_includes run, "jq -r '.merge_commit_sha // .head.sha'"
+    assert_includes run, "merge_sha"
+    assert_includes run, 'contents/config/organization.yaml?ref=$base_sha'
+    assert_includes run, 'contents/config/organization.yaml?ref=$merge_sha'
     assert_includes run, "config_changed=false"
     refute_includes run, "treating it as a config-changing PR"
     assert_includes run, 'startswith(".github/workflows/")'
@@ -201,13 +207,21 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
 
   def test_detect_config_change_marks_truncated_pr_file_lists_for_workflow_validation
     stderr, status, output = run_detect_script(
-      merge_config_exists: true,
+      merge_config_state: :same,
       changed_files: 2,
       files_json: '[{"filename":"docs/README.md"}]'
     )
 
     assert status.success?, "detect script failed: #{stderr}"
     assert_includes output, "workflow_changed=true"
+  end
+
+  def test_detect_config_change_uses_live_pr_revision
+    stderr, status, output = run_detect_script(merge_config_state: :different)
+
+    assert status.success?, "detect script failed: #{stderr}"
+    assert_includes output, "config_changed=true"
+    assert_includes output, "merge_sha=current-merge-sha"
   end
 
   def test_apply_provenance_filter_counts_only_authorized_same_repo_prs
