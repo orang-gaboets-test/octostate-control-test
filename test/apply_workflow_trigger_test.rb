@@ -32,7 +32,7 @@ class ApplyWorkflowTriggerTest < Minitest::Test
     refute_includes trigger.fetch("run"), ".github/workflows/validate.yml@"
     assert_includes trigger.fetch("run"), "Unexpected triggering workflow path"
     assert_operator steps.index(trigger), :<, steps.index(provenance)
-    assert_equal false, checkout.fetch("with").fetch("persist-credentials")
+    refute checkout.fetch("with").key?("persist-credentials")
     assert_equal "${{ vars.OCTOSTATE_APPLY_APP_CLIENT_ID }}", app_token.fetch("with").fetch("client-id")
     assert_equal "${{ secrets.OCTOSTATE_APPLY_APP_PRIVATE_KEY }}", app_token.fetch("with").fetch("private-key")
     assert_equal "${{ github.repository_owner }}", app_token.fetch("with").fetch("owner")
