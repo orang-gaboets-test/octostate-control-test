@@ -140,7 +140,7 @@ jobs:
 
       - name: Install octostate
         if: steps.provenance.outputs.apply_required == 'true'
-        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
 
       - name: Validate config
         if: steps.provenance.outputs.apply_required == 'true'

@@ -164,7 +164,7 @@ jobs:
 
       - name: Install octostate
         if: github.event_name != 'pull_request'
-        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
 
       - name: Validate config
         if: github.event_name != 'pull_request'

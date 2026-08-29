@@ -51,7 +51,7 @@ jobs:
         run: go run . --event-path "$GITHUB_EVENT_PATH" --config ../../config/organization.yaml
 
       - name: Install octostate
-        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
 
       - name: Validate config
         run: octostate config validate --config-dir ./config

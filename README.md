@@ -36,7 +36,7 @@ clear pass or fail. The trusted `pull_request_target` path installs the pinned
 CLI version:
 
 ```bash
-go install github.com/orang-gaboets/octostate/cmd/octostate@v1.1.0
+go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
 octostate config validate --config-dir ./config
 ```
 
