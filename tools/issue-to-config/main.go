@@ -215,13 +215,15 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 		return repositoryRequest{}, fmt.Errorf("visibility must be private or public, got %q", request.Visibility)
 	}
 
-	if templateValue := valueSection(sections, "Template repository"); templateValue != "" {
-		parsed, err := parseTemplateRepository(templateValue)
-		if err != nil {
-			return repositoryRequest{}, err
-		}
-		request.Template = parsed
+	templateValue := valueSection(sections, "Template repository")
+	if templateValue == "" {
+		return repositoryRequest{}, errors.New("template repository is required for repository creation")
 	}
+	parsed, err := parseTemplateRepository(templateValue)
+	if err != nil {
+		return repositoryRequest{}, err
+	}
+	request.Template = parsed
 
 	teamPermissionBySlug := map[string]string{}
 	for _, field := range orderedPermissions {

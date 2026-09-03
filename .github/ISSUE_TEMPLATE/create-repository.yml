@@ -46,8 +46,10 @@ body:
     id: template
     attributes:
       label: Template repository
-      description: Optional owner/name template source.
+      description: Required owner/name template source used to create the repository.
       placeholder: orang-gaboets-test/repo-template
+    validations:
+      required: true
   - type: markdown
     attributes:
       value: |

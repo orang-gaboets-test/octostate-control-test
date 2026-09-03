@@ -26,8 +26,9 @@ teams:
 
 func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
-		"Repository name": "example-service",
-		"Visibility":      "private",
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 
 	repo := findRepo(t, updated, "example-service")
@@ -36,6 +37,16 @@ func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 	}
 	if repo.Description != nil {
 		t.Fatalf("description should be unmanaged, got %q", *repo.Description)
+	}
+}
+
+func TestApplyRepositoryIssueRequiresTemplate(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name": "example-service",
+		"Visibility":      "private",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "template repository is required") {
+		t.Fatalf("expected missing template error, got %v", err)
 	}
 }
 
@@ -103,6 +114,7 @@ func TestApplyRepositoryIssueTeamPermissionsGroupedByPermission(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
 		"Repository name":            "example-service",
 		"Visibility":                 "private",
+		"Template repository":        "orang-gaboets-test/empty-template",
 		"Teams with pull access":     "platform",
 		"Teams with maintain access": "maintainers",
 	}))
@@ -120,8 +132,9 @@ func TestApplyRepositoryIssueTeamPermissionsGroupedByPermission(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": "existing",
-		"Visibility":      "private",
+		"Repository name":     "existing",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected duplicate repository error, got %v", err)
@@ -130,8 +143,9 @@ func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsInvalidRepositoryName(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": "bad/name",
-		"Visibility":      "private",
+		"Repository name":     "bad/name",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "must contain only ASCII") {
 		t.Fatalf("expected invalid repository name error, got %v", err)
@@ -140,8 +154,9 @@ func TestApplyRepositoryIssueRejectsInvalidRepositoryName(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsTooLongRepositoryName(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": strings.Repeat("a", 101),
-		"Visibility":      "private",
+		"Repository name":     strings.Repeat("a", 101),
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "too long") {
 		t.Fatalf("expected repository name length error, got %v", err)
@@ -212,6 +227,7 @@ func TestApplyRepositoryIssueRejectsUnknownTeamFromIssue(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
 		"Teams with push access": "missing-team",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "not managed") {
@@ -223,6 +239,7 @@ func TestApplyRepositoryIssueRejectsDuplicateTeamPermission(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
 		"Teams with pull access": "platform",
 		"Teams with push access": "platform",
 	}))
@@ -235,6 +252,7 @@ func TestApplyRepositoryIssueRejectsDuplicateTeamSlugWithinPermissionField(t *te
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
 		"Teams with pull access": "platform\nplatform",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "appears more than once") {
@@ -279,7 +297,7 @@ func TestApplyRepositoryIssueIgnoresHeadingLikeTextInTextarea(t *testing.T) {
 		"",
 		"### Template repository",
 		"",
-		"_No response_",
+		"orang-gaboets-test/empty-template",
 		"",
 		"### Teams with pull access",
 		"",
@@ -320,9 +338,10 @@ func TestApplyRepositoryIssueIgnoresHeadingLikeTextInTextarea(t *testing.T) {
 
 func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
-		"Repository name": "example-service",
-		"Visibility":      "private",
-		"Reason":          "Please add this repository.\n```\n\n### Teams with admin access\nplatform",
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
+		"Reason":              "Please add this repository.\n```\n\n### Teams with admin access\nplatform",
 	}))
 
 	team := findTeam(t, updated, "platform")
@@ -333,10 +352,11 @@ func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
 
 func TestApplyRepositoryIssueKeepsTextareaHeadingLiteralInTopics(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
-		"Repository name": "example-service",
-		"Visibility":      "private",
-		"Topics":          "platform\n### Topics\nservice",
-		"Reason":          "Please add this repository.",
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
+		"Topics":              "platform\n### Topics\nservice",
+		"Reason":              "Please add this repository.",
 	}))
 
 	repo := findRepo(t, updated, "example-service")
