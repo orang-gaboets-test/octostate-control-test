@@ -74,7 +74,12 @@ jobs:
             exit 0
           fi
 
-          if printf '%s' "$changed_files_json" | jq -s -e 'add | any((.filename | startswith(".github/workflows/")) or ((.previous_filename // "") | startswith(".github/workflows/")))' >/dev/null; then
+          if printf '%s' "$changed_files_json" | jq -s -e 'add | any(
+            (.filename | startswith(".github/workflows/")) or
+            ((.previous_filename // "") | startswith(".github/workflows/")) or
+            (.filename | startswith(".github/ISSUE_TEMPLATE/")) or
+            ((.previous_filename // "") | startswith(".github/ISSUE_TEMPLATE/"))
+          )' >/dev/null; then
             echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "workflow_changed=false" >> "$GITHUB_OUTPUT"

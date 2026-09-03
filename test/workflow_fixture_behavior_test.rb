@@ -188,8 +188,9 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     assert_includes run, "config_changed=false"
     refute_includes run, "treating it as a config-changing PR"
     assert_includes run, 'startswith(".github/workflows/")'
+    assert_includes run, 'startswith(".github/ISSUE_TEMPLATE/")'
 
-    workflow_expr = 'add | any((.filename | startswith(".github/workflows/")) or ((.previous_filename // "") | startswith(".github/workflows/")))'
+    workflow_expr = 'add | any((.filename | startswith(".github/workflows/")) or ((.previous_filename // "") | startswith(".github/workflows/")) or (.filename | startswith(".github/ISSUE_TEMPLATE/")) or ((.previous_filename // "") | startswith(".github/ISSUE_TEMPLATE/")))'
 
     assert_equal "true", jq(workflow_expr, [
       { "filename" => ".github/workflows/renamed.yml", "previous_filename" => ".github/workflows/validate.yml" }
@@ -207,6 +208,16 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
       merge_config_state: :same,
       changed_files: 2,
       files_json: '[{"filename":"docs/README.md"}]'
+    )
+
+    assert status.success?, "detect script failed: #{stderr}"
+    assert_includes output, "workflow_changed=true"
+  end
+
+  def test_detect_config_change_marks_issue_template_changes_for_workflow_validation
+    stderr, status, output = run_detect_script(
+      merge_config_state: :same,
+      files_json: '[{"filename":".github/ISSUE_TEMPLATE/create-team.yml"}]'
     )
 
     assert status.success?, "detect script failed: #{stderr}"
