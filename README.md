@@ -23,11 +23,11 @@ The initial desired state is an adopted baseline from `orang-gaboets-test`:
 - repositories currently managed by the org
 - teams currently present in the org
 
-Open issues with the provided templates when a member invite, team, or repository
-should be added. A pull request should update `config/organization.yaml` and pass
-the applicable checks before merge.
-Repository-request issues are turned into draft PRs with a dedicated GitHub App
-token so the resulting branches can run organization-change checks.
+Use the repository issue template when a managed repository should be added.
+Repository-request issues are currently turned into draft PRs with a dedicated
+GitHub App token so the resulting branches can run organization-change checks.
+The member-invite and team templates are retained as request forms, but no
+issue-to-PR automation handles those request types yet.
 
 ## Validation
 
@@ -198,8 +198,9 @@ snapshots there.
 
 ## Scope
 
-Only PRs generated from organization-change issues by the dedicated PR App are
-eligible for live apply. Validation and trusted preflight still run on normal
+Only repository-request issues are currently converted into PRs by the dedicated
+PR App, and only those generated PRs are eligible for live apply. Validation and
+trusted preflight still run on normal
 repository-development PRs and fork PRs, but they do not alter desired state.
 Live apply runs after a successful validation of `config/organization.yaml` on
 `main`, reconciling the exact commit that passed checks rather than whatever
