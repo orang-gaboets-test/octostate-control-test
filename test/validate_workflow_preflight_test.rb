@@ -153,6 +153,8 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     stdout, stderr, status = run_with_skipped_repository_create(apply.fetch("run"))
 
     refute status.success?, "live apply unexpectedly succeeded: #{stdout}#{stderr}"
-    assert_includes stdout, "skipped repository creation"
+    assert_includes stdout, "Live apply failed convergence policy: octostate reported a skipped repository creation."
+    assert_includes stdout, "Other executable actions may already have been applied."
+    refute_includes stdout, "Refusing live apply: octostate reported a skipped repository creation."
   end
 end

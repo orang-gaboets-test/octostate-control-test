@@ -184,7 +184,7 @@ jobs:
               all(.data.skipped_actions[]; .resource_type != "repository" or .operation != "create")
             end
           ' >/dev/null; then
-            echo "Refusing live apply: octostate reported a skipped repository creation."
+            echo "Live apply failed convergence policy: octostate reported a skipped repository creation. Other executable actions may already have been applied."
             exit 1
           fi
           echo "applied=true" >> "$GITHUB_OUTPUT"
