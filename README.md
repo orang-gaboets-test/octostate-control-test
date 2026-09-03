@@ -42,7 +42,7 @@ octostate config validate --config-dir ./config
 
 `octostate config validate` is offline and does not require GitHub credentials or
 repository secrets. The trusted preflight App publishes an `Octostate preflight`
-status on the PR merge SHA and then runs `octostate config apply --check` with
+status on the PR head SHA and then runs `octostate config apply --check` with
 its own GitHub App token as the trusted preflight gate before merge.
 
 PRs that change `config/organization.yaml` fail unless all of the following are
@@ -113,10 +113,17 @@ After creating the GitHub Apps, do this in order:
 2. Leave webhooks disabled on all three apps.
 3. Store each app's client ID in a repository variable and each private key in
    a repository secret.
-4. Set `OCTOSTATE_PR_APP_LOGIN` to the PR App bot login and add the branch
-   rulesets described below.
-5. Smoke test the flow by opening a repository issue to draft a PR, then an
-   organization-change PR to confirm validation and preflight run.
+4. Set `OCTOSTATE_PR_APP_LOGIN` to the PR App bot login and add the app-only
+   branch ruleset described below. Keep the main ruleset in bootstrap mode,
+   requiring only `Validate desired state`.
+5. Merge the workflow into `main` while the main ruleset is still in bootstrap
+   mode. The preflight check cannot publish a status until the workflow exists
+   on `main`.
+6. Open a smoke-test PR after the workflow has landed and confirm that the
+   preflight App publishes `Octostate preflight` successfully on the PR head.
+7. Update the main ruleset to require `Octostate preflight` from the preflight
+   App, enable the strict up-to-date branch policy, and verify the final flow
+   with an organization-change PR.
 
 ## App-Only Branch Provenance
 
@@ -141,11 +148,17 @@ Apply a manual GitHub branch ruleset to `main` that:
 - requires pull requests
 - requires `Validate desired state` with GitHub Actions as the expected source
 - requires `Octostate preflight` with the dedicated preflight App as the expected source
+- requires branches to be up to date before merging
 - blocks direct pushes
 - blocks force pushes
 - blocks deletion
 - keeps merged config changes to one commit, preferably by squash merge
 - avoids human or admin bypass entries for desired-state changes
+
+During bootstrap, require only `Validate desired state` until this workflow has
+landed on `main` and a smoke-test PR has produced a real `Octostate preflight`
+status from the dedicated App. Then add the preflight requirement and enable
+the up-to-date branch policy.
 
 ## Live Apply
 
