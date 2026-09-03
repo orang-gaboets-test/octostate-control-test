@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -15,8 +14,6 @@ import (
 
 type repositoryIssueEvent struct {
 	Issue struct {
-		Number int          `json:"number"`
-		Title  string       `json:"title"`
 		Body   string       `json:"body"`
 		Labels []issueLabel `json:"labels"`
 	} `json:"issue"`
@@ -97,12 +94,17 @@ type repositoryRequest struct {
 	Teams       map[string][]string
 }
 
-var permissionLabels = map[string]string{
-	"pull":     "Teams with pull access",
-	"triage":   "Teams with triage access",
-	"push":     "Teams with push access",
-	"maintain": "Teams with maintain access",
-	"admin":    "Teams with admin access",
+type permissionField struct {
+	permission string
+	label      string
+}
+
+var orderedPermissions = []permissionField{
+	{permission: "pull", label: "Teams with pull access"},
+	{permission: "triage", label: "Teams with triage access"},
+	{permission: "push", label: "Teams with push access"},
+	{permission: "maintain", label: "Teams with maintain access"},
+	{permission: "admin", label: "Teams with admin access"},
 }
 
 func main() {
@@ -151,8 +153,7 @@ func run(eventPath, configPath string) error {
 }
 
 func isRepositoryRequestIssue(event repositoryIssueEvent) bool {
-	return hasLabel(event.Issue.Labels, "repository") ||
-		strings.HasPrefix(strings.ToLower(strings.TrimSpace(event.Issue.Title)), "create repository:")
+	return hasLabel(event.Issue.Labels, "repository")
 }
 
 func hasLabel(labels []issueLabel, want string) bool {
@@ -197,7 +198,7 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 		Name:       valueSection(sections, "Repository name"),
 		Visibility: valueSection(sections, "Visibility"),
 		Topics:     listSection(sections, "Topics"),
-		Teams:      make(map[string][]string, len(permissionLabels)),
+		Teams:      make(map[string][]string, len(orderedPermissions)),
 	}
 	request.Description = valueSection(sections, "Description")
 	request.Homepage = valueSection(sections, "Homepage")
@@ -214,23 +215,30 @@ func parseRepositoryRequest(body string) (repositoryRequest, error) {
 		return repositoryRequest{}, fmt.Errorf("visibility must be private or public, got %q", request.Visibility)
 	}
 
-	if templateValue := valueSection(sections, "Template repository"); templateValue != "" {
-		parsed, err := parseTemplateRepository(templateValue)
-		if err != nil {
-			return repositoryRequest{}, err
-		}
-		request.Template = parsed
+	templateValue := valueSection(sections, "Template repository")
+	if templateValue == "" {
+		return repositoryRequest{}, errors.New("template repository is required for repository creation")
 	}
+	parsed, err := parseTemplateRepository(templateValue)
+	if err != nil {
+		return repositoryRequest{}, err
+	}
+	request.Template = parsed
 
 	teamPermissionBySlug := map[string]string{}
-	for _, permission := range sortedPermissions() {
-		for _, slug := range listSection(sections, permissionLabels[permission]) {
+	for _, field := range orderedPermissions {
+		fieldSlugs := map[string]struct{}{}
+		for _, slug := range listSection(sections, field.label) {
 			key := strings.ToLower(slug)
-			if existing, ok := teamPermissionBySlug[key]; ok {
-				return repositoryRequest{}, fmt.Errorf("team %q appears under both %s and %s access", slug, existing, permission)
+			if _, ok := fieldSlugs[key]; ok {
+				return repositoryRequest{}, fmt.Errorf("team %q appears more than once in %s access", slug, field.permission)
 			}
-			teamPermissionBySlug[key] = permission
-			request.Teams[permission] = append(request.Teams[permission], slug)
+			fieldSlugs[key] = struct{}{}
+			if existing, ok := teamPermissionBySlug[key]; ok {
+				return repositoryRequest{}, fmt.Errorf("team %q appears under both %s and %s access", slug, existing, field.permission)
+			}
+			teamPermissionBySlug[key] = field.permission
+			request.Teams[field.permission] = append(request.Teams[field.permission], slug)
 		}
 	}
 
@@ -288,8 +296,8 @@ func addRepositoryRequest(cfg *organizationConfig, request repositoryRequest) er
 		teamIndex[strings.ToLower(team.Slug)] = i
 	}
 
-	for _, permission := range sortedPermissions() {
-		for _, slug := range request.Teams[permission] {
+	for _, field := range orderedPermissions {
+		for _, slug := range request.Teams[field.permission] {
 			index, ok := teamIndex[strings.ToLower(slug)]
 			if !ok {
 				return fmt.Errorf("team %q is not managed in config", slug)
@@ -314,12 +322,12 @@ func addRepositoryRequest(cfg *organizationConfig, request repositoryRequest) er
 	}
 	cfg.Repositories = append(cfg.Repositories, newRepo)
 
-	for _, permission := range sortedPermissions() {
-		for _, slug := range request.Teams[permission] {
+	for _, field := range orderedPermissions {
+		for _, slug := range request.Teams[field.permission] {
 			index := teamIndex[strings.ToLower(slug)]
 			cfg.Teams[index].Repositories = append(cfg.Teams[index].Repositories, teamRepoSpec{
 				Name:       request.Name,
-				Permission: permission,
+				Permission: field.permission,
 			})
 		}
 	}
@@ -341,31 +349,83 @@ func teamHasRepository(team teamSpec, organization, name string) bool {
 }
 
 func parseIssueFormSections(body string) map[string]string {
-	sections := map[string]string{}
-	var current string
-	var lines []string
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	sections := make(map[string]string, len(issueFormSections))
+	limit := len(lines)
 
-	flush := func() {
-		if current == "" {
-			return
-		}
-		sections[current] = strings.TrimSpace(strings.Join(lines, "\n"))
-		lines = nil
-	}
-
-	for _, rawLine := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
-		if strings.HasPrefix(rawLine, "### ") {
-			flush()
-			current = strings.TrimSpace(strings.TrimPrefix(rawLine, "### "))
+	for i := len(issueFormSections) - 1; i >= 0; i-- {
+		field := issueFormSections[i]
+		start := lastHeadingIndex(lines, field.label, limit)
+		if start == -1 {
 			continue
 		}
-		if current != "" {
-			lines = append(lines, rawLine)
+
+		sectionLines := lines[start+1 : limit]
+		if field.textarea {
+			sectionLines = trimTextareaSection(sectionLines)
 		}
+		sections[field.label] = strings.TrimSpace(strings.Join(sectionLines, "\n"))
+		limit = start
 	}
-	flush()
 
 	return sections
+}
+
+type issueFormSection struct {
+	label    string
+	textarea bool
+}
+
+var issueFormSections = []issueFormSection{
+	{label: "Repository name"},
+	{label: "Visibility"},
+	{label: "Description"},
+	{label: "Homepage"},
+	{label: "Topics", textarea: true},
+	{label: "Template repository"},
+	{label: "Teams with pull access", textarea: true},
+	{label: "Teams with triage access", textarea: true},
+	{label: "Teams with push access", textarea: true},
+	{label: "Teams with maintain access", textarea: true},
+	{label: "Teams with admin access", textarea: true},
+	{label: "Reason", textarea: true},
+}
+
+func lastHeadingIndex(lines []string, label string, limit int) int {
+	needle := "### " + label
+	last := -1
+	inFence := false
+	for i := 0; i < limit; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence && trimmed == needle {
+			last = i
+		}
+	}
+	return last
+}
+
+func trimTextareaSection(lines []string) []string {
+	start := 0
+	end := len(lines)
+
+	for start < end && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if start < end && strings.HasPrefix(strings.TrimSpace(lines[start]), "```") {
+		start++
+	}
+	if end > start && strings.HasPrefix(strings.TrimSpace(lines[end-1]), "```") {
+		end--
+	}
+
+	return lines[start:end]
 }
 
 func valueSection(sections map[string]string, label string) string {
@@ -391,32 +451,4 @@ func listSection(sections map[string]string, label string) []string {
 		values = append(values, trimmed)
 	}
 	return values
-}
-
-func sortedPermissions() []string {
-	permissions := make([]string, 0, len(permissionLabels))
-	for permission := range permissionLabels {
-		permissions = append(permissions, permission)
-	}
-	sort.Slice(permissions, func(i, j int) bool {
-		return permissionRank(permissions[i]) < permissionRank(permissions[j])
-	})
-	return permissions
-}
-
-func permissionRank(permission string) int {
-	switch permission {
-	case "pull":
-		return 0
-	case "triage":
-		return 1
-	case "push":
-		return 2
-	case "maintain":
-		return 3
-	case "admin":
-		return 4
-	default:
-		return 99
-	}
 }

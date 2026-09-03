@@ -2,12 +2,22 @@ name: Validate octostate config
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
   push:
     branches:
       - main
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   validate:
@@ -15,17 +25,216 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Enforce single-commit main pushes
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          commit_count="$(jq '.commits | length' "$GITHUB_EVENT_PATH")"
+          if [ "$commit_count" -ne 1 ]; then
+            echo "main must be updated by exactly one commit per push; got $commit_count commits."
+            echo "Use a squash merge or a single commit push so apply can trace config provenance."
+            exit 1
+          fi
+
+      - name: Detect config change
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          pr_json="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          base_sha="$(printf '%s' "$pr_json" | jq -r '.base.sha')"
+          head_sha="$(printf '%s' "$pr_json" | jq -r '.head.sha')"
+          merge_sha="$(printf '%s' "$pr_json" | jq -r '.merge_commit_sha // .head.sha')"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+          if ! base_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$base_sha" --jq .sha)" ||
+             ! merge_config_sha="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$merge_sha" --jq .sha)"; then
+            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$base_config_sha" = "$merge_config_sha" ]; then
+            echo "config_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "config_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          changed_files_total="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.changed_files')"
+          changed_files_json="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --paginate)"
+          fetched_file_count="$(printf '%s' "$changed_files_json" | jq -s 'add | length')"
+          if [ "$fetched_file_count" -lt "$changed_files_total" ]; then
+            echo "GitHub truncated the PR file list for $PR_NUMBER ($fetched_file_count of $changed_files_total files); treating workflow validation as needed."
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "$changed_files_json" | jq -s -e 'add | any(
+            (.filename | startswith(".github/workflows/")) or
+            ((.previous_filename // "") | startswith(".github/workflows/")) or
+            (.filename | startswith(".github/ISSUE_TEMPLATE/")) or
+            ((.previous_filename // "") | startswith(".github/ISSUE_TEMPLATE/"))
+          )' >/dev/null; then
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create preflight status GitHub App token
+        if: github.event_name == 'pull_request_target'
+        id: preflight-status-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-statuses: write
+
+      - name: Mark preflight status pending
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
+          PRECHECK_SHA: ${{ steps.detect.outputs.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          description='Trusted preflight is running'
+
+          gh api "repos/$REPOSITORY/statuses/$PRECHECK_SHA" \
+            -f state=pending \
+            -f context='Octostate preflight' \
+            -f description="$description" \
+            -f target_url="$RUN_URL" >/dev/null
+
+      - name: Check organization-change provenance
+        if: github.event_name == 'pull_request_target'
+        env:
+          CONFIG_CHANGED: ${{ steps.detect.outputs.config_changed }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIG_CHANGED" != "true" ]; then
+            echo "No organization config change detected."
+            exit 0
+          fi
+
+          if [ "$HEAD_REPOSITORY" != "$BASE_REPOSITORY" ] ||
+             [ "${HEAD_BRANCH#automation/repository-request-}" = "$HEAD_BRANCH" ] ||
+             [ "$PR_AUTHOR" != "$PR_APP_LOGIN" ]; then
+            echo "config/organization.yaml changes must come from an App-authored automation/repository-request-* branch in this repository."
+            exit 1
+          fi
+
+          echo "Organization config change is App-authored."
+
+      # SECURITY: The trusted pull_request_target path may read the PR merge ref
+      # as configuration input for octostate, but it must not run workflow
+      # linting or repository code from the PR.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && steps.detect.outputs.merge_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Validate workflow YAML
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && steps.detect.outputs.workflow_changed == 'true')
+        run: |
+          ruby -e 'require "yaml"; Dir[".github/{workflows,ISSUE_TEMPLATE}/*.{yml,yaml}"].sort.each { |file| YAML.safe_load(File.read(file), aliases: false) }'
+
+      - name: Run workflow regression tests
+        if: github.event_name != 'pull_request_target'
+        run: ruby -e 'Dir["./test/*_test.rb"].sort.each { |file| require file }'
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        if: github.event_name != 'pull_request_target'
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version: "1.24.x"
           cache: false
 
+      - name: Run issue-to-config tests
+        if: github.event_name != 'pull_request_target'
+        working-directory: tools/issue-to-config
+        run: go test ./...
+
       - name: Install octostate
-        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.0.0
+        if: github.event_name != 'pull_request'
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
 
       - name: Validate config
+        if: github.event_name != 'pull_request'
         run: octostate config validate --config-dir ./config
+
+      - name: Create preflight read GitHub App token
+        if: github.event_name == 'pull_request_target'
+        id: preflight-read-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_PREFLIGHT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_PREFLIGHT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-members: read
+          permission-metadata: read
+
+      - name: Preflight apply
+        if: github.event_name == 'pull_request_target'
+        run: |
+          set -euo pipefail
+          preflight_output="$(
+            octostate config apply --config-dir ./config --check --token "${{ steps.preflight-read-app-token.outputs.token }}"
+          )"
+          printf '%s\n' "$preflight_output"
+
+          if ! printf '%s\n' "$preflight_output" | jq -e '
+            if (.data.skipped_actions | type) != "array" then
+              error("octostate response is missing data.skipped_actions")
+            else
+              all(.data.skipped_actions[]; .resource_type != "repository" or .operation != "create")
+            end
+          ' >/dev/null; then
+            echo "Refusing preflight: octostate reported a skipped repository creation."
+            exit 1
+          fi
+
+      - name: Publish preflight status
+        if: always() && github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ steps.preflight-status-app-token.outputs.token }}
+          CONFIG_CHANGED: ${{ steps.detect.outputs.config_changed }}
+          JOB_STATUS: ${{ job.status }}
+          PRECHECK_SHA: ${{ steps.detect.outputs.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$JOB_STATUS" = "success" ]; then
+            if [ "$CONFIG_CHANGED" = "true" ]; then
+              description='Organization config change passed trusted preflight.'
+            else
+              description='No organization config change detected.'
+            fi
+            state=success
+          else
+            if [ "$CONFIG_CHANGED" = "true" ]; then
+              description='Organization config change failed trusted preflight.'
+            else
+              description='Trusted preflight failed.'
+            fi
+            state=failure
+          fi
+          gh api "repos/$REPOSITORY/statuses/$PRECHECK_SHA" \
+            -f state="$state" \
+            -f context='Octostate preflight' \
+            -f description="$description" \
+            -f target_url="$RUN_URL" >/dev/null

@@ -26,8 +26,9 @@ teams:
 
 func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
-		"Repository name": "example-service",
-		"Visibility":      "private",
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 
 	repo := findRepo(t, updated, "example-service")
@@ -39,9 +40,18 @@ func TestApplyRepositoryIssueMinimalPrivateRepository(t *testing.T) {
 	}
 }
 
+func TestApplyRepositoryIssueRequiresTemplate(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name": "example-service",
+		"Visibility":      "private",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "template repository is required") {
+		t.Fatalf("expected missing template error, got %v", err)
+	}
+}
+
 func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Anything"
 	event.Issue.Labels = []issueLabel{{Name: "repository"}}
 
 	if !isRepositoryRequestIssue(event) {
@@ -49,18 +59,16 @@ func TestIsRepositoryRequestIssueAcceptsRepositoryLabel(t *testing.T) {
 	}
 }
 
-func TestIsRepositoryRequestIssueAcceptsTitleFallback(t *testing.T) {
+func TestIsRepositoryRequestIssueRejectsTitleOnlyRequest(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Create repository: example-service"
 
-	if !isRepositoryRequestIssue(event) {
-		t.Fatal("expected title prefix to identify repository request")
+	if isRepositoryRequestIssue(event) {
+		t.Fatal("did not expect title prefix alone to identify repository request")
 	}
 }
 
 func TestIsRepositoryRequestIssueRejectsUnrelatedIssue(t *testing.T) {
 	event := repositoryIssueEvent{}
-	event.Issue.Title = "Create team: platform"
 	event.Issue.Labels = []issueLabel{{Name: "team"}}
 
 	if isRepositoryRequestIssue(event) {
@@ -106,6 +114,7 @@ func TestApplyRepositoryIssueTeamPermissionsGroupedByPermission(t *testing.T) {
 	updated := applyIssue(t, issueBody(map[string]string{
 		"Repository name":            "example-service",
 		"Visibility":                 "private",
+		"Template repository":        "orang-gaboets-test/empty-template",
 		"Teams with pull access":     "platform",
 		"Teams with maintain access": "maintainers",
 	}))
@@ -123,8 +132,9 @@ func TestApplyRepositoryIssueTeamPermissionsGroupedByPermission(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": "existing",
-		"Visibility":      "private",
+		"Repository name":     "existing",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected duplicate repository error, got %v", err)
@@ -133,8 +143,9 @@ func TestApplyRepositoryIssueRejectsDuplicateRepository(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsInvalidRepositoryName(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": "bad/name",
-		"Visibility":      "private",
+		"Repository name":     "bad/name",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "must contain only ASCII") {
 		t.Fatalf("expected invalid repository name error, got %v", err)
@@ -143,8 +154,9 @@ func TestApplyRepositoryIssueRejectsInvalidRepositoryName(t *testing.T) {
 
 func TestApplyRepositoryIssueRejectsTooLongRepositoryName(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
-		"Repository name": strings.Repeat("a", 101),
-		"Visibility":      "private",
+		"Repository name":     strings.Repeat("a", 101),
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "too long") {
 		t.Fatalf("expected repository name length error, got %v", err)
@@ -215,6 +227,7 @@ func TestApplyRepositoryIssueRejectsUnknownTeamFromIssue(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
 		"Teams with push access": "missing-team",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "not managed") {
@@ -226,11 +239,24 @@ func TestApplyRepositoryIssueRejectsDuplicateTeamPermission(t *testing.T) {
 	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
 		"Repository name":        "example-service",
 		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
 		"Teams with pull access": "platform",
 		"Teams with push access": "platform",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "appears under both") {
 		t.Fatalf("expected duplicate team permission error, got %v", err)
+	}
+}
+
+func TestApplyRepositoryIssueRejectsDuplicateTeamSlugWithinPermissionField(t *testing.T) {
+	_, err := applyRepositoryIssue([]byte(baseConfig), issueBody(map[string]string{
+		"Repository name":        "example-service",
+		"Visibility":             "private",
+		"Template repository":    "orang-gaboets-test/empty-template",
+		"Teams with pull access": "platform\nplatform",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "appears more than once") {
+		t.Fatalf("expected duplicate team slug error, got %v", err)
 	}
 }
 
@@ -242,6 +268,100 @@ func TestApplyRepositoryIssueRejectsMalformedTemplate(t *testing.T) {
 	}))
 	if err == nil || !strings.Contains(err.Error(), "owner/name") {
 		t.Fatalf("expected malformed template error, got %v", err)
+	}
+}
+
+func TestApplyRepositoryIssueIgnoresHeadingLikeTextInTextarea(t *testing.T) {
+	body := strings.Join([]string{
+		"### Repository name",
+		"",
+		"example-service",
+		"",
+		"### Visibility",
+		"",
+		"private",
+		"",
+		"### Description",
+		"",
+		"_No response_",
+		"",
+		"### Homepage",
+		"",
+		"_No response_",
+		"",
+		"### Topics",
+		"",
+		"```markdown",
+		"platform",
+		"```",
+		"",
+		"### Template repository",
+		"",
+		"orang-gaboets-test/empty-template",
+		"",
+		"### Teams with pull access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with triage access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with push access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with maintain access",
+		"",
+		"_No response_",
+		"",
+		"### Teams with admin access",
+		"",
+		"_No response_",
+		"",
+		"### Reason",
+		"",
+		"```markdown",
+		"Please add this repo.",
+		"### Teams with admin access",
+		"platform",
+		"```",
+		"",
+	}, "\n")
+
+	updated := applyIssue(t, body)
+	team := findTeam(t, updated, "platform")
+	if len(team.Repositories) != 0 {
+		t.Fatalf("expected code-fenced heading text to stay in textarea content, got %#v", team.Repositories)
+	}
+}
+
+func TestApplyRepositoryIssueKeepsTextareaFenceBreakoutsLiteral(t *testing.T) {
+	updated := applyIssue(t, issueBody(map[string]string{
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
+		"Reason":              "Please add this repository.\n```\n\n### Teams with admin access\nplatform",
+	}))
+
+	team := findTeam(t, updated, "platform")
+	if len(team.Repositories) != 0 {
+		t.Fatalf("expected fence breakout text to stay in textarea content, got %#v", team.Repositories)
+	}
+}
+
+func TestApplyRepositoryIssueKeepsTextareaHeadingLiteralInTopics(t *testing.T) {
+	updated := applyIssue(t, issueBody(map[string]string{
+		"Repository name":     "example-service",
+		"Visibility":          "private",
+		"Template repository": "orang-gaboets-test/empty-template",
+		"Topics":              "platform\n### Topics\nservice",
+		"Reason":              "Please add this repository.",
+	}))
+
+	repo := findRepo(t, updated, "example-service")
+	if got := strings.Join(repo.Topics, ","); got != "platform,### Topics,service" {
+		t.Fatalf("unexpected topics: %q", got)
 	}
 }
 
@@ -297,6 +417,15 @@ func issueBody(fields map[string]string) string {
 		"Teams with admin access",
 		"Reason",
 	}
+	textareaLabels := map[string]bool{
+		"Topics":                     true,
+		"Teams with pull access":     true,
+		"Teams with triage access":   true,
+		"Teams with push access":     true,
+		"Teams with maintain access": true,
+		"Teams with admin access":    true,
+		"Reason":                     true,
+	}
 
 	var b strings.Builder
 	for _, label := range labels {
@@ -307,7 +436,13 @@ func issueBody(fields map[string]string) string {
 		b.WriteString("### ")
 		b.WriteString(label)
 		b.WriteString("\n\n")
-		b.WriteString(value)
+		if textareaLabels[label] && value != "_No response_" {
+			b.WriteString("```markdown\n")
+			b.WriteString(value)
+			b.WriteString("\n```")
+		} else {
+			b.WriteString(value)
+		}
 		b.WriteString("\n\n")
 	}
 	return b.String()

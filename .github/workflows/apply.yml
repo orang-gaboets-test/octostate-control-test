@@ -1,0 +1,227 @@
+name: Apply octostate config
+
+on:
+  workflow_run:
+    workflows:
+      - Validate octostate config
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  apply:
+    name: Apply desired state
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: octostate-live-apply
+      cancel-in-progress: false
+      queue: max
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    env:
+      VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Verify triggering workflow path
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          triggering_workflow_path="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID" --jq '.path')"
+          case "$triggering_workflow_path" in
+            .github/workflows/validate.yml)
+              echo "Trusted workflow trigger path confirmed: $triggering_workflow_path"
+              ;;
+            *)
+              echo "Unexpected triggering workflow path: $triggering_workflow_path"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify apply provenance
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OCTOSTATE_PR_APP_LOGIN: ${{ vars.OCTOSTATE_PR_APP_LOGIN }}
+          REPOSITORY: ${{ github.repository }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          parent_sha="$(gh api "repos/$REPOSITORY/commits/$VALIDATED_SHA" --jq '.parents[0].sha // empty')"
+          validated_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$VALIDATED_SHA" --jq .sha)"
+          parent_config_blob=""
+          if [ -n "$parent_sha" ]; then
+            if parent_config_blob="$(gh api "repos/$REPOSITORY/contents/config/organization.yaml?ref=$parent_sha" --jq .sha 2>&1)"; then
+              :
+            else
+              case "$parent_config_blob" in
+                *"Not Found"*|*"404"*) parent_config_blob="" ;;
+                *)
+                  printf '%s\n' "$parent_config_blob" >&2
+                  exit 1
+                  ;;
+              esac
+            fi
+          fi
+          if [ "$validated_config_blob" = "$parent_config_blob" ]; then
+            echo "apply_required=false" >> "$GITHUB_OUTPUT"
+            echo "Validated commit did not change config/organization.yaml; skipping live apply."
+            exit 0
+          fi
+
+          if [ -z "$OCTOSTATE_PR_APP_LOGIN" ]; then
+            echo "OCTOSTATE_PR_APP_LOGIN is required for config-changing live apply."
+            exit 1
+          fi
+
+          provenance_commit_sha="$(gh api "repos/$REPOSITORY/commits?sha=$VALIDATED_SHA&path=config/organization.yaml&per_page=1" --jq '.[0].sha // empty')"
+          if [ -z "$provenance_commit_sha" ]; then
+            echo "Unable to determine the commit that introduced config/organization.yaml."
+            exit 1
+          fi
+
+          authorized_pr_count="$(gh api \
+            "repos/$REPOSITORY/commits/$provenance_commit_sha/pulls" \
+            | jq --arg repository "$REPOSITORY" --arg app_login "$OCTOSTATE_PR_APP_LOGIN" '
+              [
+                .[]?
+                | select(.merged_at != null)
+                | select(.head.repo.full_name == $repository)
+                | select(.base.repo.full_name == $repository)
+                | select(.base.ref == "main")
+                | select(.user.login == $app_login)
+                | select(.head.ref | startswith("automation/repository-request-"))
+              ]
+              | length
+            ')"
+          if [ "$authorized_pr_count" != "1" ]; then
+            echo "Refusing live apply: config/organization.yaml provenance commit $provenance_commit_sha must map to exactly one merged same-repo PR from $OCTOSTATE_PR_APP_LOGIN on automation/repository-request-* targeting main."
+            exit 1
+          fi
+
+          echo "apply_required=true" >> "$GITHUB_OUTPUT"
+          echo "Config provenance commit has authorized PR provenance."
+
+      - name: Checkout validated commit
+        if: steps.provenance.outputs.apply_required == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      - name: Create apply GitHub App token
+        if: steps.provenance.outputs.apply_required == 'true'
+        id: apply-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.OCTOSTATE_APPLY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OCTOSTATE_APPLY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-administration: write
+          permission-contents: read
+          permission-members: write
+          permission-metadata: read
+
+      - name: Set up Go
+        if: steps.provenance.outputs.apply_required == 'true'
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Install octostate
+        if: steps.provenance.outputs.apply_required == 'true'
+        run: go install github.com/orang-gaboets/octostate/cmd/octostate@v1.2.0
+
+      - name: Validate config
+        if: steps.provenance.outputs.apply_required == 'true'
+        run: octostate config validate --config-dir ./config
+
+      - name: Apply config if validated commit is still current
+        id: apply
+        if: steps.provenance.outputs.apply_required == 'true'
+        env:
+          OCTOSTATE_APPLY_TOKEN: ${{ steps.apply-app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$current_main_sha" != "$VALIDATED_SHA" ]; then
+            validated_config_blob="$(git rev-parse "$VALIDATED_SHA:config/organization.yaml")"
+            current_main_config_blob="$(git rev-parse "origin/main:config/organization.yaml")"
+            if [ "$current_main_config_blob" = "$validated_config_blob" ]; then
+              echo "main advanced to $current_main_sha, but config/organization.yaml is unchanged; proceeding with live apply."
+            else
+              echo "Skipping live apply because config/organization.yaml changed after validation of $VALIDATED_SHA."
+              {
+                echo "### Live apply skipped"
+                echo
+                printf 'Validated commit: `%s`\n' "$VALIDATED_SHA"
+                printf 'Current main: `%s`\n' "$current_main_sha"
+                echo
+                echo "A newer successful validation run will reconcile the current main state."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          fi
+          apply_output="$(
+            octostate config apply --config-dir ./config --token "$OCTOSTATE_APPLY_TOKEN"
+          )"
+          printf '%s\n' "$apply_output"
+          if ! printf '%s\n' "$apply_output" | jq -e '
+            if (.data.skipped_actions | type) != "array" then
+              error("octostate response is missing data.skipped_actions")
+            else
+              all(.data.skipped_actions[]; .resource_type != "repository" or .operation != "create")
+            end
+          ' >/dev/null; then
+            echo "Live apply failed convergence policy: octostate reported a skipped repository creation. Other executable actions may already have been applied."
+            exit 1
+          fi
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+
+      - name: Document apply recovery
+        if: failure() && steps.provenance.outputs.apply_required == 'true'
+        run: |
+          {
+            echo "### Live apply failed"
+            echo
+            printf 'Validated commit: `%s`\n' "$VALIDATED_SHA"
+            echo
+            echo "If the validated commit is still current, re-run this workflow run from the Actions tab to retry the live apply."
+            echo "If main has moved to a different desired-state blob, start a new validation/apply cycle instead."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check for newer main commit after apply
+        if: success() && steps.provenance.outputs.apply_required == 'true' && steps.apply.outputs.applied == 'true'
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          latest_main_sha="$(git rev-parse origin/main)"
+          if [ "$latest_main_sha" != "$VALIDATED_SHA" ]; then
+            validated_config_blob="$(git rev-parse "$VALIDATED_SHA:config/organization.yaml")"
+            latest_main_config_blob="$(git rev-parse "origin/main:config/organization.yaml")"
+            if [ "$latest_main_config_blob" = "$validated_config_blob" ]; then
+              echo "main advanced during apply, but config/organization.yaml is unchanged."
+              exit 0
+            fi
+            {
+              echo "### Apply completed on a stale revision"
+              echo
+              printf 'Applied commit: `%s`\n' "$VALIDATED_SHA"
+              printf 'Current main: `%s`\n' "$latest_main_sha"
+              echo
+              echo "A newer validation/apply cycle must reconcile the current state."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Applied revision is still current main."
