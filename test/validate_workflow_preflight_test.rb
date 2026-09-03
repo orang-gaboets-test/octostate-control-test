@@ -66,7 +66,7 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_includes workflow_yaml.fetch("run"), "YAML.load_file"
     assert_equal "${{ github.event.repository.name }}", status_token.fetch("with").fetch("repositories")
     assert_equal "write", status_token.fetch("with").fetch("permission-statuses")
-    assert_equal "read", status_token.fetch("with").fetch("permission-pull-requests")
+    refute status_token.fetch("with").key?("permission-pull-requests")
     assert_equal "read", apply_token.fetch("with").fetch("permission-members")
     assert_equal "read", apply_token.fetch("with").fetch("permission-metadata")
     refute apply_token.fetch("with").key?("permission-statuses")

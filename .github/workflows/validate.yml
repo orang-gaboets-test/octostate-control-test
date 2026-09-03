@@ -95,7 +95,6 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-statuses: write
-          permission-pull-requests: read
 
       - name: Mark preflight status pending
         if: github.event_name == 'pull_request_target'
