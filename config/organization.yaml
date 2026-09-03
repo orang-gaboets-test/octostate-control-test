@@ -16,6 +16,12 @@ repositories:
       - template
   - name: octostate-control-test
     visibility: public
+  - name: automation-smoke-test
+    visibility: private
+    description: Smoke test repository for issue-to-PR automation.
+    topics:
+      - automation
+      - smoke-test
 teams:
   - slug: test-team
     name: test-team
