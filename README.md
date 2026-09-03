@@ -81,9 +81,9 @@ token roles across the workflows:
   `Octostate preflight` and a separate read token for `octostate config
   apply --check`. Set `OCTOSTATE_PR_APP_LOGIN` to the exact login of the PR
   App's bot user, including the `[bot]` suffix. Install the preflight App on the
-  organization with read access to pull requests, organization members, and
-  repository metadata plus commit-status write access, and grant it access to
-  all repositories whose state is managed here.
+  organization with read access to organization members and repository metadata
+  plus commit-status write access, and grant it access to all repositories
+  whose state is managed here.
 - `OCTOSTATE_APPLY_APP_CLIENT_ID` and `OCTOSTATE_APPLY_APP_PRIVATE_KEY` power
   the live apply workflow after changes land on `main`. The workflow mints a
   short-lived installation token from the Apply App and uses it for

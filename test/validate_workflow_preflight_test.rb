@@ -58,6 +58,13 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     end
   end
 
+  def test_documents_least_privilege_preflight_app_permissions
+    readme = File.read("README.md")
+
+    assert_includes readme, "read access to organization members and repository metadata"
+    refute_includes readme, "read access to pull requests, organization members, and repository metadata"
+  end
+
   def test_publishes_octostate_preflight_status
     refute workflow.fetch("permissions").key?("statuses")
 
