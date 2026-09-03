@@ -173,7 +173,20 @@ jobs:
               exit 1
             fi
           fi
-          octostate config apply --config-dir ./config --token "$OCTOSTATE_APPLY_TOKEN"
+          apply_output="$(
+            octostate config apply --config-dir ./config --token "$OCTOSTATE_APPLY_TOKEN"
+          )"
+          printf '%s\n' "$apply_output"
+          if ! printf '%s\n' "$apply_output" | jq -e '
+            if (.data.skipped_actions | type) != "array" then
+              error("octostate response is missing data.skipped_actions")
+            else
+              all(.data.skipped_actions[]; .resource_type != "repository" or .operation != "create")
+            end
+          ' >/dev/null; then
+            echo "Refusing live apply: octostate reported a skipped repository creation."
+            exit 1
+          fi
           echo "applied=true" >> "$GITHUB_OUTPUT"
 
       - name: Document apply recovery

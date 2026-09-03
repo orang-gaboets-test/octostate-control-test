@@ -189,7 +189,23 @@ jobs:
 
       - name: Preflight apply
         if: github.event_name == 'pull_request_target'
-        run: octostate config apply --config-dir ./config --check --token "${{ steps.preflight-read-app-token.outputs.token }}"
+        run: |
+          set -euo pipefail
+          preflight_output="$(
+            octostate config apply --config-dir ./config --check --token "${{ steps.preflight-read-app-token.outputs.token }}"
+          )"
+          printf '%s\n' "$preflight_output"
+
+          if ! printf '%s\n' "$preflight_output" | jq -e '
+            if (.data.skipped_actions | type) != "array" then
+              error("octostate response is missing data.skipped_actions")
+            else
+              all(.data.skipped_actions[]; .resource_type != "repository" or .operation != "create")
+            end
+          ' >/dev/null; then
+            echo "Refusing preflight: octostate reported a skipped repository creation."
+            exit 1
+          fi
 
       - name: Publish preflight status
         if: always() && github.event_name == 'pull_request_target'

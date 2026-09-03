@@ -1,4 +1,7 @@
 require "minitest/autorun"
+require "open3"
+require "tmpdir"
+require "fileutils"
 require "yaml"
 
 class ValidateWorkflowPreflightTest < Minitest::Test
@@ -8,6 +11,42 @@ class ValidateWorkflowPreflightTest < Minitest::Test
 
   def validate_job
     workflow.fetch("jobs").fetch("validate")
+  end
+
+  def run_with_skipped_repository_create(step_run, interpolation: {})
+    Dir.mktmpdir do |dir|
+      bin = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin)
+
+      octostate = File.join(bin, "octostate")
+      File.write(octostate, <<~'SH')
+        #!/bin/sh
+        set -eu
+        printf '%s\n' '{"status":"check","data":{"skipped_actions":[{"resource_type":"repository","operation":"create","resource_id":"orang-gaboets-test/new-repository","executable":false}]}}'
+      SH
+      FileUtils.chmod(0o755, octostate)
+
+      git = File.join(bin, "git")
+      File.write(git, <<~'SH')
+        #!/bin/sh
+        set -eu
+        case "$*" in
+          "fetch origin main --depth=1") exit 0 ;;
+          "rev-parse origin/main") printf '%s\n' "$VALIDATED_SHA" ;;
+          *) printf '%s\n' "unexpected git call: $*" >&2; exit 1 ;;
+        esac
+      SH
+      FileUtils.chmod(0o755, git)
+
+      script = interpolation.reduce(step_run.dup) { |body, (needle, replacement)| body.gsub(needle, replacement) }
+      env = {
+        "PATH" => "#{bin}:#{ENV.fetch("PATH")}",
+        "GITHUB_STEP_SUMMARY" => File.join(dir, "summary"),
+        "OCTOSTATE_APPLY_TOKEN" => "token",
+        "VALIDATED_SHA" => "validated-sha"
+      }
+      Open3.capture3(env, "bash", "-euo", "pipefail", "-c", script)
+    end
   end
 
   def test_validates_issue_template_yaml
@@ -88,5 +127,25 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     refute_includes publish.fetch("run"), 'if [ "$CONFIG_CHANGED" != "true" ]'
     assert_includes publish.fetch("run"), "Octostate preflight"
     assert_includes publish.fetch("if"), "always()"
+  end
+
+  def test_preflight_rejects_skipped_repository_create
+    preflight = validate_job.fetch("steps").find { |step| step["name"] == "Preflight apply" }
+    stdout, stderr, status = run_with_skipped_repository_create(
+      preflight.fetch("run"),
+      interpolation: { '${{ steps.preflight-read-app-token.outputs.token }}' => "token" }
+    )
+
+    refute status.success?, "preflight unexpectedly succeeded: #{stdout}#{stderr}"
+    assert_includes stdout, "skipped repository creation"
+  end
+
+  def test_live_apply_rejects_skipped_repository_create
+    apply_workflow = YAML.safe_load(File.read(".github/workflows/apply.yml"), aliases: false)
+    apply = apply_workflow.fetch("jobs").fetch("apply").fetch("steps").find { |step| step["name"] == "Apply config if validated commit is still current" }
+    stdout, stderr, status = run_with_skipped_repository_create(apply.fetch("run"))
+
+    refute status.success?, "live apply unexpectedly succeeded: #{stdout}#{stderr}"
+    assert_includes stdout, "skipped repository creation"
   end
 end
