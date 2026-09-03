@@ -180,6 +180,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
     run = detect_step.fetch("run")
     assert_includes run, 'gh api "repos/$REPOSITORY/pulls/$PR_NUMBER"'
     assert_includes run, "jq -r '.base.sha'"
+    assert_includes run, "head_sha"
     assert_includes run, "jq -r '.merge_commit_sha // .head.sha'"
     assert_includes run, "merge_sha"
     assert_includes run, 'contents/config/organization.yaml?ref=$base_sha'
@@ -217,6 +218,7 @@ class WorkflowFixtureBehaviorTest < Minitest::Test
 
     assert status.success?, "detect script failed: #{stderr}"
     assert_includes output, "config_changed=true"
+    assert_includes output, "head_sha=head-sha"
     assert_includes output, "merge_sha=current-merge-sha"
   end
 

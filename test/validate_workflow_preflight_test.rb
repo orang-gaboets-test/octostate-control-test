@@ -76,12 +76,12 @@ class ValidateWorkflowPreflightTest < Minitest::Test
     assert_operator steps.index(status_token), :<, steps.index(publish)
     assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", pending.fetch("env").fetch("GH_TOKEN")
     assert_equal "${{ steps.preflight-status-app-token.outputs.token }}", publish.fetch("env").fetch("GH_TOKEN")
-    assert_equal "${{ steps.detect.outputs.merge_sha }}", pending.fetch("env").fetch("PRECHECK_SHA")
+    assert_equal "${{ steps.detect.outputs.head_sha }}", pending.fetch("env").fetch("PRECHECK_SHA")
     assert_includes preflight.fetch("run"), '--token "${{ steps.preflight-read-app-token.outputs.token }}"'
     assert_equal "github.event_name == 'pull_request_target'", preflight.fetch("if")
     assert_operator steps.index(apply_token), :<, steps.index(preflight)
     assert_includes pending.fetch("run"), "Octostate preflight"
-    assert_equal "${{ steps.detect.outputs.merge_sha }}", publish.fetch("env").fetch("PRECHECK_SHA")
+    assert_equal "${{ steps.detect.outputs.head_sha }}", publish.fetch("env").fetch("PRECHECK_SHA")
     assert_equal "${{ job.status }}", publish.fetch("env").fetch("JOB_STATUS")
     assert_includes publish.fetch("run"), "No organization config change detected."
     assert_includes publish.fetch("run"), 'if [ "$JOB_STATUS" = "success" ]'
